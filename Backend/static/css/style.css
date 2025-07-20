@@ -111,7 +111,7 @@
 /* Dark theme variables (for future implementation) */
 @media (prefers-color-scheme: dark) {
     :root {
-        --background: #ffffff;
+        --background: #121212;
         --surface: #1e1e1e;
         --text-primary: #ffffff;
         --text-secondary: #b3b3b3;
@@ -685,7 +685,7 @@ a:hover {
 .section-header h3 {
     font-size: 20px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--text-dark);
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -1022,7 +1022,7 @@ a:hover {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    color: var(--text-primary);
+    color: var(--text-dark);
 }
 
 .search-box {
@@ -1397,7 +1397,7 @@ a:hover {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    color: var(--text-primary);
+    color: var(--text-dark);
 }
 
 .viewer-controls {
