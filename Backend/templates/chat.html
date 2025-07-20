@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - SAV.IN{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+    <!-- Chat Sidebar -->
+    <div class="chat-sidebar">
+        <div class="sidebar-header">
+            <h2>
+                <i class="material-icons">description</i>
+                Your Documents
+            </h2>
+            <div class="search-box">
+                <i class="material-icons search-icon">search</i>
+                <input type="text" class="search-input" placeholder="Search documents..." id="docSearch">
+            </div>
+        </div>
+        
+        <div class="documents-list" id="documentsList">
+            <div class="loading-placeholder">
+                <div class="spinner"></div>
+                <p>Loading documents...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-main">
+        <div class="chat-header">
+            <div class="document-info">
+                <div class="doc-icon">
+                    <i class="material-icons">picture_as_pdf</i>
+                </div>
+                <div class="doc-details">
+                    <h3 id="documentTitle">Select a Document</h3>
+                    <p id="documentMeta">Choose a document to start chatting</p>
+                </div>
+            </div>
+            
+            <div class="chat-actions">
+                <button class="chat-btn" id="viewPdfBtn" title="View PDF" disabled>
+                    <i class="material-icons">visibility</i>
+                </button>
+                <button class="chat-btn" id="downloadBtn" title="Download PDF" disabled>
+                    <i class="material-icons">download</i>
+                </button>
+                <button class="chat-btn" id="clearChatBtn" title="Clear Chat" disabled>
+                    <i class="material-icons">clear_all</i>
+                </button>
+            </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+            <div class="message ai">
+                <div class="message-avatar">
+                    <i class="material-icons">smart_toy</i>
+                </div>
+                <div class="message-content">
+                    <div class="message-text">
+                        Welcome to SAV.IN! I'm your AI assistant powered by Granite models. 
+                        Select a document from the sidebar to start our conversation.
+                    </div>
+                    <div class="message-time" id="welcomeTime"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="suggested-questions" id="suggestedQuestions">
+                <div class="suggestion-chip" data-question="What is this document about?">
+                    What is this document about?
+                </div>
+                <div class="suggestion-chip" data-question="Summarize the key points">
+                    Summarize the key points
+                </div>
+                <div class="suggestion-chip" data-question="Find important data or statistics">
+                    Find important data
+                </div>
+                <div class="suggestion-chip" data-question="What are the main conclusions?">
+                    Main conclusions
+                </div>
+            </div>
+            
+            <div class="input-wrapper">
+                <textarea 
+                    class="message-input" 
+                    id="messageInput" 
+                    placeholder="Ask about your document..."
+                    rows="1"
+                    disabled
+                ></textarea>
+                <button class="send-btn" id="sendBtn" disabled>
+                    <i class="material-icons">send</i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Viewer -->
+    <div class="pdf-viewer">
+        <div class="viewer-header">
+            <h3>
+                <i class="material-icons">description</i>
+                Document Preview
+            </h3>
+            <div class="viewer-controls">
+                <button class="control-btn" id="zoomOutBtn" title="Zoom Out">
+                    <i class="material-icons">zoom_out</i>
+                </button>
+                <button class="control-btn" id="zoomInBtn" title="Zoom In">
+                    <i class="material-icons">zoom_in</i>
+                </button>
+                <button class="control-btn" id="fullscreenBtn" title="Fullscreen">
+                    <i class="material-icons">fullscreen</i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="pdf-content" id="pdfContent">
+            <div class="pdf-page">
+                <div>
+                    <i class="material-icons" style="font-size: 64px; margin-bottom: 16px; opacity: 0.3;">description</i>
+                    <h4>Document Preview</h4>
+                    <p>Select a document to view its preview here</p>
+                    <small>Source references will be highlighted automatically</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

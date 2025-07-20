@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Upload - SAV.IN{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <!-- Upload Section -->
+    <div class="upload-section">
+        <div class="upload-card">
+            <div class="upload-header">
+                <i class="material-icons upload-icon">cloud_upload</i>
+                <h2>Upload Your PDF Document</h2>
+                <p>Transform your documents into intelligent conversations with our local AI</p>
+            </div>
+            
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="fileInput" accept=".pdf" hidden>
+                
+                <div class="upload-placeholder" id="uploadPlaceholder">
+                    <i class="material-icons">description</i>
+                    <p>Drop your PDF here or click the button below</p>
+                    <button class="browse-button" id="browseButton">
+                        <i class="material-icons">upload_file</i>
+                        <span>Browse Files</span>
+                    </button>
+                    <small>Maximum file size: 16MB • Supported format: PDF</small>
+                </div>
+                
+                <div class="upload-progress hidden" id="uploadProgress">
+                    <div class="progress-info">
+                        <span id="fileName">Document.pdf</span>
+                        <span id="fileSize">0 MB</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">Preparing upload...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Documents Section -->
+    <div class="documents-section">
+        <div class="section-header">
+            <h3>
+                <i class="material-icons">folder</i>
+                Your Documents
+            </h3>
+            <button class="refresh-btn" id="refreshBtn">
+                <i class="material-icons">refresh</i>
+            </button>
+        </div>
+        
+        <div class="documents-list" id="documentsList">
+            <div class="loading-placeholder">
+                <div class="spinner"></div>
+                <p>Loading documents...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+{% endblock %}

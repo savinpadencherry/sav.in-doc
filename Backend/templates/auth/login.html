@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Login - SAV.IN{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="logo">
+                <i class="material-icons">smart_toy</i>
+                <h1>SAV.IN</h1>
+            </div>
+            <p class="tagline">Your Intelligent PDF Assistant</p>
+        </div>
+        
+        <form class="auth-form" id="loginForm">
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <div class="input-group">
+                    <i class="material-icons">person</i>
+                    <input type="text" id="username" name="username" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-group">
+                    <i class="material-icons">lock</i>
+                    <input type="password" id="password" name="password" required>
+                    <button type="button" class="password-toggle" onclick="togglePassword()">
+                        <i class="material-icons" id="passwordToggleIcon">visibility</i>
+                    </button>
+                </div>
+            </div>
+            
+            <button type="submit" class="auth-button">
+                <span>Sign In</span>
+                <i class="material-icons">arrow_forward</i>
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="/register">Create one</a></p>
+        </div>
+    </div>
+    
+    <div class="auth-background">
+        <div class="floating-element" style="top: 20%; left: 10%; animation-delay: 0s;">
+            <i class="material-icons">description</i>
+        </div>
+        <div class="floating-element" style="top: 60%; right: 15%; animation-delay: 1s;">
+            <i class="material-icons">chat</i>
+        </div>
+        <div class="floating-element" style="bottom: 20%; left: 20%; animation-delay: 2s;">
+            <i class="material-icons">search</i>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script>
+    // Handle login form submission
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const username = formData.get('username');
+        const password = formData.get('password');
+        
+        await handleLogin(username, password);
+    });
+    
+    // Toggle password visibility
+    function togglePassword() {
+        const passwordInput = document.getElementById('password');
+        const toggleIcon = document.getElementById('passwordToggleIcon');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.textContent = 'visibility_off';
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.textContent = 'visibility';
+        }
+    }
+    
+    // Check if user is already logged in
+    document.addEventListener('DOMContentLoaded', () => {
+        if (localStorage.getItem('authToken')) {
+            window.location.href = '/upload';
+        }
+    });
+</script>
+{% endblock %}

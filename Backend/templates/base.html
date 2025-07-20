@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SAV.IN - PDF Chat{% endblock %}</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <i class="material-icons">smart_toy</i>
+                <span>SAV.IN</span>
+            </a>
+            
+            <div class="nav-links">
+                <a href="/upload" class="nav-link {% if request.endpoint == 'upload_page' %}active{% endif %}">
+                    <i class="material-icons">upload_file</i>
+                    <span>Upload</span>
+                </a>
+                <a href="/chat" class="nav-link {% if request.endpoint == 'chat_page' %}active{% endif %}">
+                    <i class="material-icons">chat</i>
+                    <span>Chat</span>
+                </a>
+            </div>
+            
+            <div class="nav-user">
+                <div class="user-info">
+                    <span>Demo User</span>
+                    <i class="material-icons">account_circle</i>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Global Scripts -->
+    <script>
+        // Global configuration
+        const API_BASE = '/api';
+        
+        // Global API helper function
+        async function apiRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                ...options
+            };
+            
+            // Don't set Content-Type for FormData
+            if (options.body && options.body instanceof FormData) {
+                delete defaultOptions.headers['Content-Type'];
+            }
+            
+            try {
+                const response = await fetch(url, defaultOptions);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('API Request Error:', error);
+                throw error;
+            }
+        }
+        
+        // Global notification system
+        function showNotification(message, type = 'info', duration = 4000) {
+            // Remove existing notifications
+            const existing = document.querySelectorAll('.notification');
+            existing.forEach(notification => notification.remove());
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            const icon = type === 'success' ? 'check_circle' : 
+                        type === 'error' ? 'error' : 
+                        type === 'warning' ? 'warning' : 'info';
+            
+            notification.innerHTML = `
+                <i class="material-icons">${icon}</i>
+                <span>${message}</span>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+        
+        // Global utility functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffInHours = (now - date) / (1000 * 60 * 60);
+            
+            if (diffInHours < 1) {
+                return 'Just now';
+            } else if (diffInHours < 24) {
+                return `${Math.floor(diffInHours)}h ago`;
+            } else if (diffInHours < 48) {
+                return 'Yesterday';
+            } else {
+                return date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        }
+        
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            showNotification('An unexpected error occurred', 'error');
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

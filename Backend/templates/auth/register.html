@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Register - SAV.IN{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="logo">
+                <i class="material-icons">smart_toy</i>
+                <h1>SAV.IN</h1>
+            </div>
+            <p class="tagline">Join the Future of Document Intelligence</p>
+        </div>
+        
+        <form class="auth-form" id="registerForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <div class="input-group">
+                    <i class="material-icons">person</i>
+                    <input type="text" id="username" name="username" required minlength="3">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <div class="input-group">
+                    <i class="material-icons">email</i>
+                    <input type="email" id="email" name="email" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-group">
+                    <i class="material-icons">lock</i>
+                    <input type="password" id="password" name="password" required minlength="8">
+                    <button type="button" class="password-toggle" onclick="togglePassword()">
+                        <i class="material-icons" id="passwordToggleIcon">visibility</i>
+                    </button>
+                </div>
+                <div class="password-strength" id="passwordStrength"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <div class="input-group">
+                    <i class="material-icons">lock</i>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="auth-button">
+                <span>Create Account</span>
+                <i class="material-icons">arrow_forward</i>
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Already have an account? <a href="/">Sign in</a></p>
+        </div>
+    </div>
+    
+    <div class="auth-background">
+        <div class="floating-element" style="top: 15%; right: 10%; animation-delay: 0s;">
+            <i class="material-icons">psychology</i>
+        </div>
+        <div class="floating-element" style="top: 50%; left: 10%; animation-delay: 1.5s;">
+            <i class="material-icons">auto_stories</i>
+        </div>
+        <div class="floating-element" style="bottom: 25%; right: 20%; animation-delay: 0.5s;">
+            <i class="material-icons">lightbulb</i>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script>
+    // Handle registration form submission
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const username = formData.get('username');
+        const email = formData.get('email');
+        const password = formData.get('password');
+        const confirmPassword = formData.get('confirmPassword');
+        
+        // Validate passwords match
+        if (password !== confirmPassword) {
+            showToast('Passwords do not match', 'error');
+            return;
+        }
+        
+        await handleRegister(username, email, password);
+    });
+    
+    // Toggle password visibility
+    function togglePassword() {
+        const passwordInput = document.getElementById('password');
+        const toggleIcon = document.getElementById('passwordToggleIcon');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.textContent = 'visibility_off';
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.textContent = 'visibility';
+        }
+    }
+    
+    // Password strength indicator
+    document.getElementById('password').addEventListener('input', (e) => {
+        const password = e.target.value;
+        const strengthElement = document.getElementById('passwordStrength');
+        
+        if (password.length === 0) {
+            strengthElement.innerHTML = '';
+            return;
+        }
+        
+        let strength = 0;
+        let feedback = [];
+        
+        if (password.length >= 8) strength++;
+        else feedback.push('At least 8 characters');
+        
+        if (/[a-z]/.test(password)) strength++;
+        else feedback.push('Lowercase letter');
+        
+        if (/[A-Z]/.test(password)) strength++;
+        else feedback.push('Uppercase letter');
+        
+        if (/[0-9]/.test(password)) strength++;
+        else feedback.push('Number');
+        
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+        else feedback.push('Special character');
+        
+        const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+        const strengthColors = ['#f44336', '#ff9800', '#ffc107', '#4caf50', '#2196f3'];
+        
+        strengthElement.innerHTML = `
+            <div class="strength-bar">
+                <div class="strength-fill" style="width: ${strength * 20}%; background: ${strengthColors[strength - 1] || '#f44336'}"></div>
+            </div>
+            <span class="strength-text">${strengthLabels[strength - 1] || 'Very Weak'}</span>
+            ${feedback.length > 0 ? `<small>Missing: ${feedback.join(', ')}</small>` : ''}
+        `;
+    });
+    
+    // Check if user is already logged in
+    document.addEventListener('DOMContentLoaded', () => {
+        if (localStorage.getItem('authToken')) {
+            window.location.href = '/upload';
+        }
+    });
+</script>
+{% endblock %}
