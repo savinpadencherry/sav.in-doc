@@ -8,15 +8,15 @@
 
 import os
 import json
-import gradio as gr
-from gradio_pdf import PDF
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
-from langchain.memory import ConversationBufferMemory
-from langchain_community.vectorstores import Chroma
-from langchain.prompts import PromptTemplate
+import gradio as gr # type: ignore
+from gradio_pdf import PDF # type: ignore
+from langchain_ollama import OllamaLLM, OllamaEmbeddings # type: ignore
+from langchain_community.document_loaders import PyPDFLoader # type: ignore
+from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
+from langchain.chains import RetrievalQA # type: ignore
+from langchain.memory import ConversationBufferMemory # type: ignore
+from langchain_community.vectorstores import Chroma # type: ignore
+from langchain.prompts import PromptTemplate # type: ignore
 
 CHATS_DIR = "./chats"
 #defines a directory to store chat history
@@ -160,7 +160,9 @@ def get_rag_chain(chat_id):
     for msg in chats[chat_id]["history"]:
         memory.save_context({"input":msg["user"]}, {"output":msg["bot"]})
     prompt = PromptTemplate(input_variables=["context", "question"],template="""
-    You are **sav.in**, a helpful assistant.
+    You are **sav.in**, a helpful assistant. That also means your identity and name is **sav.in**
+    if you are prompted a question about your identity like what is your name? or who are you? or who am 
+    i talking to your answer should be my identity is sav.in                        
 
     🔍 Step 1: Read the context below and answer based **only** on that.
     If the answer cannot be found in the context, proceed to Step 2.

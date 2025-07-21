@@ -1324,6 +1324,7 @@ a:hover {
     padding: var(--space-3) var(--space-5);
     border: 2px solid var(--divider);
     border-radius: var(--radius-round);
+    color: white;
     font-size: 15px;
     font-family: inherit;
     resize: none;

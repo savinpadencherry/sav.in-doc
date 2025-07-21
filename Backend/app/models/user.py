@@ -4,7 +4,7 @@ User Model - Enhanced with proper authentication
 
 from app import db
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash # type: ignore
 
 class User(db.Model):
     __tablename__ = 'users'
