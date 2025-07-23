@@ -668,7 +668,7 @@ class ChatManager {
     async fetchLiveAIResponse(chat, userMessage) {
         try{
             const response = await apiRequest(
-                '/chat/${this.currentChatId}/message',
+                `/chat/${this.currentChatId}/message`,
                 {
                     method : 'POST',
                     body : JSON.stringify({
