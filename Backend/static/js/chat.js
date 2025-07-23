@@ -360,11 +360,15 @@ class ChatManager {
     
     highlightSourceInPreview(sourceText) {
         if (!this.pdfPreview || !sourceText) return;
-        
+
         const content = this.pdfPreview.innerHTML;
-        const regex = new RegExp(`(${this.escapeRegex(sourceText)})`, 'gi');
-        const highlightedContent = content.replace(regex, '<span class="source-highlight">$1</span>');
-        
+        // Remove any previous highlights
+        this.pdfPreview.innerHTML = content.replace(/<span class="source-highlight">(.*?)<\/span>/gi, '$1');
+
+        const escaped = this.escapeRegex(sourceText).replace(/\s+/g, '\\s+');
+        const regex = new RegExp(`(${escaped})`, 'gi');
+        const highlightedContent = this.pdfPreview.innerHTML.replace(regex, '<span class="source-highlight">$1</span>');
+
         this.pdfPreview.innerHTML = highlightedContent;
         
         // Scroll to first highlighted section
@@ -648,10 +652,6 @@ class ChatManager {
     }
     
     createMessageHTML(message) {
-        const timestamp = new Date(message.timestamp).toLocaleTimeString([], {
-            hour: '2-digit', 
-            minute: '2-digit'
-        });
         
         const sourcesHTML = message.sources && message.sources.length > 0 ? `
             <div class="message-sources">
@@ -672,7 +672,7 @@ class ChatManager {
                 </div>
                 <div class="message-content">
                     <div class="message-text">${message.content}</div>
-                    <div class="message-time">${timestamp}</div>
+                    
                     ${sourcesHTML}
                 </div>
             </div>
