@@ -252,8 +252,8 @@ body::after {
 
 /* MAIN CONTENT - FIXED SPACING FROM NAVBAR */
 .main-content {
-    margin-top: 90px; /* INCREASED FROM 70px TO FIX NAVBAR OVERLAP */
-    min-height: calc(100vh - 90px);
+    margin-top: 70px; /* reduce spacing below navbar */
+    min-height: calc(100vh - 70px);
     padding: 40px 32px;
     position: relative;
     background: linear-gradient(135deg, #000428, #004e92);
@@ -460,7 +460,7 @@ body::after {
 .upload-area.drag-over {
     background: linear-gradient(145deg, rgba(66, 165, 245, 0.1), rgba(255, 255, 255, 0.95));
     border-color: var(--primary-color);
-    transform: scale(1.02);
+    transform: scaleX(1.02); /* emphasize width */
     box-shadow: var(--shadow-glow);
 }
 
@@ -635,12 +635,12 @@ body::after {
 .chat-layout {
     display: grid;
     grid-template-columns: 350px 1fr 450px;
-    height: calc(100vh - 100px); /* reduced top spacing */
+    height: calc(100vh - 80px); /* closer to navbar */
     max-width: 1800px;
     margin: 0 auto;
     gap: 24px; /* more breathing room between panels */
     overflow: hidden;
-    margin-top: 10px; /* less space below navbar */
+    margin-top: 0; /* remove extra gap */
     padding: 20px;
 }
 
@@ -654,7 +654,7 @@ body::after {
     overflow: hidden;
     box-shadow: var(--shadow-xl);
     border: 2px solid rgba(255, 255, 255, 0.1);
-    height: calc(100vh - 130px); /* ADJUSTED HEIGHT */
+    height: calc(100vh - 110px); /* reduced spacing */
 }
 
 .sidebar-header {
@@ -743,7 +743,7 @@ body::after {
     overflow: hidden;
     box-shadow: var(--shadow-xl);
     border: 2px solid rgba(255, 255, 255, 0.1);
-    height: calc(100vh - 130px); /* ADJUSTED HEIGHT */
+    height: calc(100vh - 110px); /* reduced spacing */
     border-radius: var(--radius-xl);
 }
 
@@ -922,7 +922,7 @@ body::after {
     overflow: hidden;
     box-shadow: var(--shadow-xl);
     border: 2px solid rgba(255, 255, 255, 0.1);
-    height: calc(100vh - 130px);
+    height: calc(100vh - 110px); /* reduced spacing */
 }
 
 .viewer-header {
