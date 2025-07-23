@@ -673,7 +673,7 @@ class ChatManager {
                     method : 'POST',
                     body : JSON.stringify({
                         message: userMessage,
-                        selectedDocuments: Array.from(this.selectedDocuments)
+                        document_ids: Array.from(this.selectedDocuments)
                     })
                 }
             );
