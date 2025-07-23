@@ -859,7 +859,7 @@ class ChatManager {
         }
     }
     
-    loadChatHistory() {
+    async loadChatHistory() {
         try {
             const saved = localStorage.getItem('savin_chat_history');
             if (saved) {
