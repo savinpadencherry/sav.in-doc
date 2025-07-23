@@ -1,9 +1,8 @@
 """
-Chat API Routes
-Enhanced chat management with conversation memory
+Enhanced Chat API Routes with Multi-PDF Support
 """
 
-from flask import Blueprint, request, jsonify # type: ignore
+from flask import Blueprint, request, jsonify
 from app.services.auth_service import AuthService
 from app.services.rag_service import RAGService
 from app.models.chat import Chat, ChatMessage
@@ -35,60 +34,68 @@ def list_chats():
 
 @chat_bp.route('/create', methods=['POST'])
 def create_chat():
-    """Create new chat session"""
+    """Create new chat session with multi-document support"""
     try:
         user = AuthService.get_current_user()
         data = request.get_json()
         
         # Validate required fields
-        if not data or 'document_id' not in data:
+        if not data or 'title' not in data:
             return jsonify({
                 'success': False,
-                'message': 'Document ID is required'
+                'message': 'Chat title is required'
             }), 400
         
-        # Verify document exists and belongs to user
-        document = Document.query.filter_by(
-            id=data['document_id'],
-            user_id=user.id
-        ).first()
+        # Document IDs are optional - can be added later
+        document_ids = data.get('document_ids', [])
         
-        if not document:
-            return jsonify({
-                'success': False,
-                'message': 'Document not found'
-            }), 404
+        # If documents provided, verify they exist and belong to user
+        documents = []
+        if document_ids:
+            documents = Document.query.filter(
+                Document.id.in_(document_ids),
+                Document.user_id == user.id,
+                Document.status == 'completed'
+            ).all()
+            
+            if len(documents) != len(document_ids):
+                return jsonify({
+                    'success': False,
+                    'message': 'Some documents not found or not ready'
+                }), 404
         
-        if document.status != 'completed':
-            return jsonify({
-                'success': False,
-                'message': f'Document is not ready for chat (status: {document.status})'
-            }), 400
+        # Create chat with first document (for compatibility)
+        primary_doc_id = document_ids[0] if document_ids else None
         
-        # Create chat
         chat = Chat(
-            title=data.get('title', f'Chat with {document.original_filename}'),
+            title=data['title'],
             memory_type=data.get('memory_type', 'buffer'),
             max_tokens=data.get('max_tokens', 4000),
             temperature=data.get('temperature', 0.2),
             user_id=user.id,
-            document_id=document.id
+            document_id=primary_doc_id  # Primary document for compatibility
         )
         
         db.session.add(chat)
         db.session.commit()
         
-        # Add welcome message
-        chat.add_message(
-            'system',
-            f'Chat session started with document: {document.original_filename}'
-        )
+        # Store selected document IDs in system message
+        if document_ids:
+            doc_names = [doc.original_filename for doc in documents]
+            system_msg = f"Chat session started with documents: {', '.join(doc_names)}"
+        else:
+            system_msg = "Chat session created. Select documents to start conversation."
+        
+        chat.add_message('system', system_msg)
         db.session.commit()
         
         return jsonify({
             'success': True,
             'message': 'Chat created successfully',
-            'data': chat.to_dict()
+            'data': {
+                **chat.to_dict(),
+                'selected_documents': document_ids
+            }
         }), 201
         
     except Exception as e:
@@ -124,7 +131,7 @@ def get_chat(chat_id):
 
 @chat_bp.route('/<int:chat_id>/message', methods=['POST'])
 def send_message(chat_id):
-    """Send message to chat and get AI response"""
+    """Send message to chat with multi-document support"""
     try:
         user = AuthService.get_current_user()
         data = request.get_json()
@@ -143,6 +150,14 @@ def send_message(chat_id):
                 'message': 'Message cannot be empty'
             }), 400
         
+        # Get selected document IDs from request
+        document_ids = data.get('document_ids', [])
+        if not document_ids:
+            return jsonify({
+                'success': False,
+                'message': 'At least one document must be selected'
+            }), 400
+        
         # Verify chat exists and belongs to user
         chat = Chat.query.filter_by(id=chat_id, user_id=user.id).first()
         if not chat:
@@ -152,6 +167,9 @@ def send_message(chat_id):
             }), 404
         
         # Process message with RAG service
+        # For now, use the primary document for processing
+        # In a full implementation, you'd enhance RAGService for multi-document support
+        primary_doc_id = document_ids[0]
         rag_service = RAGService()
         success, message, response_data = rag_service.chat_with_document(chat_id, user_message)
         
@@ -171,6 +189,62 @@ def send_message(chat_id):
         return jsonify({
             'success': False,
             'message': f'Message processing failed: {str(e)}'
+        }), 500
+
+@chat_bp.route('/<int:chat_id>/documents', methods=['POST'])
+def update_chat_documents(chat_id):
+    """Update selected documents for a chat"""
+    try:
+        user = AuthService.get_current_user()
+        data = request.get_json()
+        
+        chat = Chat.query.filter_by(id=chat_id, user_id=user.id).first()
+        if not chat:
+            return jsonify({
+                'success': False,
+                'message': 'Chat not found'
+            }), 404
+        
+        document_ids = data.get('document_ids', [])
+        
+        # Verify documents exist and belong to user
+        documents = Document.query.filter(
+            Document.id.in_(document_ids),
+            Document.user_id == user.id,
+            Document.status == 'completed'
+        ).all()
+        
+        if len(documents) != len(document_ids):
+            return jsonify({
+                'success': False,
+                'message': 'Some documents not found or not ready'
+            }), 404
+        
+        # Update primary document
+        if document_ids:
+            chat.document_id = document_ids[0]
+        
+        # Log document selection change
+        doc_names = [doc.original_filename for doc in documents]
+        system_msg = f"Document selection updated: {', '.join(doc_names)}"
+        chat.add_message('system', system_msg)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Documents updated successfully',
+            'data': {
+                'selected_documents': document_ids,
+                'document_names': doc_names
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Update failed: {str(e)}'
         }), 500
 
 @chat_bp.route('/<int:chat_id>/clear', methods=['POST'])

@@ -165,11 +165,22 @@ class DocumentService:
     
     @staticmethod
     def get_user_documents(user_id):
-        """Get all documents for a user"""
+        """Get all documents for a user with status verification"""
         documents = Document.query.filter_by(user_id=user_id)\
-                                 .order_by(Document.created_at.desc())\
-                                 .all()
+                             .order_by(Document.created_at.desc())\
+                             .all()
+    
+    # Ensure status is properly set
+        for doc in documents:
+           if doc.status == 'processing' and doc.processing_progress == 100:
+            doc.status = 'completed'
+           if doc.status == 'uploading' and doc.processing_progress >= 30:
+            doc.status = 'processing'
+    
+        db.session.commit()
+    
         return [doc.to_dict() for doc in documents]
+
     
     @staticmethod
     def get_document_status(document_id, user_id):

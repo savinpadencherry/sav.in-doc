@@ -154,7 +154,8 @@ Answer:"""
             return True, "Response generated", {
                 'response': response,
                 'sources': sources,
-                'message_count': chat.message_count
+                'message_count': chat.message_count,
+                'source_content': sources[0]['content'] if sources else ""
             }
             
         except Exception as e:

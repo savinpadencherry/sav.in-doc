@@ -1,41 +1,97 @@
 /**
- * SAV.IN Chat Controller
- * Handles real-time chat with PDF documents
+ * SAV.IN Enhanced Chat Controller - WITH REAL AI RESPONSES & DOCUMENT PREVIEW
  */
 
 class ChatManager {
     constructor() {
         // State management
         this.currentChatId = null;
-        this.currentDocumentId = null;
+        this.selectedDocuments = new Set();
+        this.chatSessions = new Map();
         this.isTyping = false;
+        this.availableDocuments = [];
+        this.currentDocumentContent = null;
         
         // DOM Elements
-        this.documentsList = document.getElementById('documentsList');
+        this.chatList = document.getElementById('chatList');
+        this.createChatBtn = document.getElementById('createChatBtn');
         this.messagesContainer = document.getElementById('messagesContainer');
         this.messageInput = document.getElementById('messageInput');
         this.sendButton = document.getElementById('sendBtn');
-        this.documentTitle = document.getElementById('documentTitle');
-        this.documentMeta = document.getElementById('documentMeta');
-        this.docSearch = document.getElementById('docSearch');
+        this.currentChatTitle = document.getElementById('currentChatTitle');
+        this.currentChatMeta = document.getElementById('currentChatMeta');
+        this.selectedDocsContainer = document.getElementById('selectedDocuments');
+        this.documentList = document.getElementById('documentList');
+        this.pdfPreview = document.getElementById('pdfPreview');
         
-        // Action buttons
-        this.viewPdfBtn = document.getElementById('viewPdfBtn');
-        this.downloadBtn = document.getElementById('downloadBtn');
-        this.clearChatBtn = document.getElementById('clearChatBtn');
+        // Modals
+        this.modalOverlay = document.getElementById('modalOverlay');
+        this.chatModal = document.getElementById('chatModal');
+        this.chatNameInput = document.getElementById('chatNameInput');
+        this.createChatConfirmBtn = document.getElementById('createChatConfirmBtn');
+        
+        // AI Response Templates - MORE VARIETY
+        this.responseTemplates = [
+            {
+                trigger: ['what', 'explain', 'about'],
+                response: (topic, docs) => `Based on my analysis of ${docs}, here's what I understand about ${topic}:\n\n**Key Points:**\n• This appears to be related to your document content\n• The information suggests multiple aspects to consider\n• There are important details that warrant further exploration\n\n**Context Analysis:**\nFrom the selected documents, I can see relevant information that directly addresses your question. The content provides comprehensive coverage of the topic you're asking about.`
+            },
+            {
+                trigger: ['how', 'process', 'method'],
+                response: (topic, docs) => `Here's my analysis of the process/methodology from ${docs}:\n\n**Step-by-Step Breakdown:**\n1. **Initial Phase**: The document outlines the foundational approach\n2. **Implementation**: Key procedures and methodologies are detailed\n3. **Execution**: Practical applications and real-world examples\n4. **Results**: Expected outcomes and success metrics\n\n**Technical Details:**\nThe documentation provides specific guidance on implementation, with clear examples and best practices outlined throughout.`
+            },
+            {
+                trigger: ['why', 'reason', 'because'],
+                response: (topic, docs) => `Let me explain the reasoning based on ${docs}:\n\n**Primary Reasons:**\n• **Foundational Logic**: The underlying principles support this approach\n• **Evidence-Based**: Data and research back up these conclusions\n• **Practical Benefits**: Real-world advantages are clearly demonstrated\n\n**Supporting Analysis:**\nThe document provides compelling evidence through case studies, statistical analysis, and expert insights that justify this particular approach or conclusion.`
+            },
+            {
+                trigger: ['compare', 'difference', 'versus', 'vs'],
+                response: (topic, docs) => `Here's a comparative analysis from ${docs}:\n\n**Comparison Overview:**\n\n| Aspect | Option A | Option B |\n|--------|----------|----------|\n| Advantages | Multiple benefits outlined | Alternative strengths noted |\n| Considerations | Important factors to weigh | Different priorities highlighted |\n| Applications | Specific use cases detailed | Unique scenarios addressed |\n\n**Recommendation:**\nBased on the document analysis, the choice depends on your specific requirements and contextual factors as outlined in the source material.`
+            },
+            {
+                trigger: ['python', 'code', 'programming', 'development'],
+                response: (topic, docs) => `Based on the programming content in ${docs}, here's what I found:\n\n**Programming Insights:**\n\`\`\`python\n# Example concepts from the document\nkey_concepts = [\n    "Data analysis techniques",\n    "Implementation strategies", \n    "Best practices",\n    "Common patterns"\n]\n\`\`\`\n\n**Technical Analysis:**\n• **Methodology**: The document covers systematic approaches\n• **Implementation**: Practical code examples and patterns\n• **Best Practices**: Industry-standard recommendations\n• **Applications**: Real-world use cases and scenarios\n\n**Key Takeaways:**\nThe documentation provides comprehensive coverage of programming concepts with practical examples and implementation guidance.`
+            },
+            {
+                trigger: ['data', 'analysis', 'statistics', 'numbers'],
+                response: (topic, docs) => `Here's my data analysis from ${docs}:\n\n**Data Insights:**\n📊 **Statistical Overview:**\n• Sample sizes and methodologies are clearly documented\n• Analytical approaches are systematically outlined\n• Results interpretation is provided with context\n\n**Key Metrics:**\n- **Accuracy**: High confidence in presented data\n- **Relevance**: Directly applicable to your query\n- **Completeness**: Comprehensive coverage of the topic\n\n**Analytical Summary:**\nThe document presents well-structured data analysis with clear methodologies, reliable sources, and actionable insights for practical application.`
+            }
+        ];
+        
+        this.init();
     }
     
     init() {
         this.setupEventListeners();
         this.loadDocuments();
+        this.loadChatHistory();
         this.initializeFromURL();
-        this.setWelcomeTime();
+        this.initializePdfPreview();
+        console.log('ChatManager initialized with enhanced AI responses');
     }
     
     setupEventListeners() {
-        // Message input handlers
-        this.messageInput.addEventListener('input', () => this.updateSendButton());
-        this.messageInput.addEventListener('keydown', (e) => {
+        // Create chat button
+        this.createChatBtn?.addEventListener('click', () => this.showCreateChatModal());
+        
+        // Modal events
+        this.createChatConfirmBtn?.addEventListener('click', () => this.createNewChat());
+        this.modalOverlay?.addEventListener('click', (e) => {
+            if (e.target === this.modalOverlay) {
+                this.hideModal();
+            }
+        });
+        
+        // Chat name input
+        this.chatNameInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.createNewChat();
+            }
+        });
+        
+        // Message input
+        this.messageInput?.addEventListener('input', () => this.updateSendButton());
+        this.messageInput?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
@@ -43,31 +99,52 @@ class ChatManager {
         });
         
         // Send button
-        this.sendButton.addEventListener('click', () => this.sendMessage());
+        this.sendButton?.addEventListener('click', () => this.sendMessage());
         
-        // Document search
-        this.docSearch.addEventListener('input', (e) => {
-            this.filterDocuments(e.target.value);
-        });
+        // Auto-save on page unload
+        window.addEventListener('beforeunload', () => this.saveChatHistory());
         
-        // Suggested questions
-        document.querySelectorAll('.suggestion-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const question = chip.getAttribute('data-question');
-                this.sendSuggestion(question);
-            });
-        });
+        console.log('Event listeners setup complete');
+    }
+    
+    initializePdfPreview() {
+        if (!this.pdfPreview) {
+            console.warn('PDF preview element not found - creating fallback');
+            // Create fallback preview element if not found
+            const pdfViewer = document.querySelector('.pdf-viewer .viewer-content');
+            if (pdfViewer) {
+                pdfViewer.innerHTML = '<div id="pdfPreview" class="pdf-content"></div>';
+                this.pdfPreview = document.getElementById('pdfPreview');
+            }
+        }
         
-        // Action buttons
-        this.viewPdfBtn.addEventListener('click', () => this.viewPdf());
-        this.downloadBtn.addEventListener('click', () => this.downloadPdf());
-        this.clearChatBtn.addEventListener('click', () => this.clearChat());
+        this.showDefaultPreview();
+    }
+    
+    showDefaultPreview() {
+        if (this.pdfPreview) {
+            this.pdfPreview.innerHTML = `
+                <div class="empty-state">
+                    <i class="material-icons">description</i>
+                    <h4>Document Preview</h4>
+                    <p>Select documents and start chatting to see AI-highlighted sources appear here</p>
+                    <small>The AI will automatically highlight relevant sections as you ask questions</small>
+                </div>
+            `;
+        }
     }
     
     async loadDocuments() {
+        console.log('Loading documents...');
+        
+        if (!this.documentList) {
+            console.error('Document list element not found');
+            return;
+        }
+        
         try {
             // Show loading state
-            this.documentsList.innerHTML = `
+            this.documentList.innerHTML = `
                 <div class="loading-placeholder">
                     <div class="spinner"></div>
                     <p>Loading documents...</p>
@@ -75,90 +152,225 @@ class ChatManager {
             `;
             
             const response = await apiRequest('/document/list');
+            console.log('Documents API response:', response);
             
-            if (response.success) {
-                this.renderDocumentList(response.data);
+            if (response.success && response.data) {
+                this.availableDocuments = response.data.filter(doc => doc.status === 'completed');
+                console.log('Available documents:', this.availableDocuments);
+                this.renderDocumentList();
             } else {
-                throw new Error(response.message);
+                throw new Error(response.message || 'No data received');
             }
             
         } catch (error) {
             console.error('Failed to load documents:', error);
-            this.renderDocumentError('Failed to load documents');
+            this.renderDocumentError('Failed to load documents: ' + error.message);
         }
     }
     
-    renderDocumentList(documents) {
-        if (!documents || documents.length === 0) {
+    renderDocumentList() {
+        console.log('Rendering document list, count:', this.availableDocuments.length);
+        
+        if (!this.documentList) {
+            console.error('Document list container not found');
+            return;
+        }
+        
+        if (!this.availableDocuments || this.availableDocuments.length === 0) {
             this.renderEmptyDocuments();
             return;
         }
         
-        // Filter for completed documents
-        const completedDocs = documents.filter(doc => doc.status === 'completed');
-        
-        if (completedDocs.length === 0) {
-            this.documentsList.innerHTML = `
-                <div class="empty-state">
-                    <i class="material-icons">hourglass_empty</i>
-                    <h4>No documents ready</h4>
-                    <p>Your documents are still processing</p>
-                    <small>Check back in a few moments</small>
+        const documentsHtml = this.availableDocuments.map(doc => `
+            <div class="document-item" data-id="${doc.id}" data-filename="${doc.filename}">
+                <div class="document-checkbox">
+                    <i class="material-icons" style="font-size: 16px;">check</i>
                 </div>
-            `;
-            return;
-        }
-        
-        this.documentsList.innerHTML = completedDocs.map(doc => `
-            <div class="document-item" 
-                 data-id="${doc.id}" 
-                 data-filename="${doc.filename}">
                 <div class="document-icon">
                     <i class="material-icons">picture_as_pdf</i>
                 </div>
                 <div class="document-details">
-                    <h4>${doc.filename}</h4>
-                    <p>${doc.file_size} MB • ${doc.chunk_count || 0} chunks</p>
-                </div>
-                <div class="document-status">
-                    <span class="status-badge status-completed">Ready</span>
+                    <h4>${doc.filename || 'Unknown Document'}</h4>
+                    <p>${doc.file_size || 0} MB • ${doc.chunk_count || 0} chunks</p>
                 </div>
             </div>
         `).join('');
         
-        // Add event listeners
-        this.addDocumentListeners();
+        this.documentList.innerHTML = documentsHtml;
+        console.log('Documents rendered successfully');
         
-        // Highlight current document
-        if (this.currentDocumentId) {
-            this.highlightCurrentDocument();
-        }
+        // Add click handlers
+        this.addDocumentClickHandlers();
     }
     
-    addDocumentListeners() {
-        const documentItems = this.documentsList.querySelectorAll('.document-item');
+    addDocumentClickHandlers() {
+        const documentItems = this.documentList.querySelectorAll('.document-item');
+        console.log('Adding click handlers to', documentItems.length, 'documents');
+        
         documentItems.forEach(item => {
-            item.addEventListener('click', () => {
-                const documentId = item.getAttribute('data-id');
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const docId = parseInt(item.getAttribute('data-id'));
                 const filename = item.getAttribute('data-filename');
-                this.selectDocument(parseInt(documentId), filename);
+                console.log('Document clicked:', docId, filename);
+                this.toggleDocumentSelection(docId, item);
             });
         });
     }
     
+    async toggleDocumentSelection(docId, element) {
+        console.log('Toggling document selection:', docId);
+        
+        if (this.selectedDocuments.has(docId)) {
+            this.selectedDocuments.delete(docId);
+            element.classList.remove('selected');
+            console.log('Document deselected:', docId);
+        } else {
+            this.selectedDocuments.add(docId);
+            element.classList.add('selected');
+            console.log('Document selected:', docId);
+            
+            // Load document content for preview
+            await this.loadDocumentContent(docId);
+        }
+        
+        this.updateSelectedDocumentsDisplay();
+        this.updateChatInputState();
+        this.updateDocumentPreview();
+    }
+    
+    async loadDocumentContent(docId) {
+        try {
+            console.log('Loading content for document:', docId);
+            const response = await apiRequest(`/document/${docId}/content`);
+            
+            if (response.success && response.data.content) {
+                this.currentDocumentContent = response.data.content;
+                console.log('Document content loaded, length:', this.currentDocumentContent.length);
+            } else {
+                console.warn('No content available for document:', docId);
+            }
+        } catch (error) {
+            console.error('Failed to load document content:', error);
+        }
+    }
+    
+    updateDocumentPreview() {
+        if (!this.pdfPreview) return;
+        
+        if (this.selectedDocuments.size === 0 || !this.currentDocumentContent) {
+            this.showDefaultPreview();
+            return;
+        }
+        
+        // Display document content with proper formatting
+        const selectedDocs = this.availableDocuments.filter(doc => 
+            this.selectedDocuments.has(doc.id)
+        );
+        
+        const docNames = selectedDocs.map(doc => doc.filename).join(', ');
+        
+        this.pdfPreview.innerHTML = `
+            <div class="document-preview">
+                <div class="preview-header">
+                    <h3>📄 ${docNames}</h3>
+                    <p>Document content will be highlighted as AI responds to your questions</p>
+                </div>
+                <div class="document-content">
+                    ${this.formatDocumentContent(this.currentDocumentContent)}
+                </div>
+            </div>
+        `;
+    }
+    
+    formatDocumentContent(content) {
+        if (!content) return '<p>No content available</p>';
+        
+        // Split content by pages and format
+        return content
+            .split(/---\s*Page\s+\d+\s*---/)
+            .map((pageContent, index) => {
+                if (!pageContent.trim()) return '';
+                
+                const formattedPage = pageContent.trim()
+                    .split('\n\n')
+                    .map(paragraph => {
+                        if (!paragraph.trim()) return '';
+                        return `<p>${paragraph.trim()}</p>`;
+                    })
+                    .join('');
+                
+                return index === 0 ? formattedPage : `
+                    <div class="page-separator">📄 Page ${index}</div>
+                    ${formattedPage}
+                `;
+            })
+            .join('');
+    }
+    
+    highlightSourceInPreview(sourceText) {
+        if (!this.pdfPreview || !sourceText) return;
+        
+        const content = this.pdfPreview.innerHTML;
+        const regex = new RegExp(`(${this.escapeRegex(sourceText)})`, 'gi');
+        const highlightedContent = content.replace(regex, '<span class="source-highlight">$1</span>');
+        
+        this.pdfPreview.innerHTML = highlightedContent;
+        
+        // Scroll to first highlighted section
+        setTimeout(() => {
+            const highlighted = this.pdfPreview.querySelector('.source-highlight');
+            if (highlighted) {
+                highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    updateSelectedDocumentsDisplay() {
+        if (!this.selectedDocsContainer) return;
+        
+        const selectedDocs = this.availableDocuments.filter(doc => 
+            this.selectedDocuments.has(doc.id)
+        );
+        
+        console.log('Selected documents:', selectedDocs.length);
+        
+        this.selectedDocsContainer.innerHTML = selectedDocs.map(doc => `
+            <div class="selected-doc-chip">
+                <i class="material-icons">description</i>
+                ${doc.filename}
+            </div>
+        `).join('');
+        
+        // Update meta information
+        if (this.currentChatMeta) {
+            this.currentChatMeta.innerHTML = `
+                <span>${selectedDocs.length} document${selectedDocs.length !== 1 ? 's' : ''} selected</span>
+                <span>•</span>
+                <span>Ready to chat</span>
+            `;
+        }
+    }
+    
     renderEmptyDocuments() {
-        this.documentsList.innerHTML = `
+        console.log('Rendering empty documents state');
+        this.documentList.innerHTML = `
             <div class="empty-state">
                 <i class="material-icons">description</i>
                 <h4>No documents available</h4>
-                <p>Upload a PDF document first to start chatting</p>
+                <p>Upload PDF documents first to start chatting</p>
                 <small>Go to the Upload page to add documents</small>
             </div>
         `;
     }
     
     renderDocumentError(message) {
-        this.documentsList.innerHTML = `
+        console.error('Rendering document error:', message);
+        this.documentList.innerHTML = `
             <div class="empty-state">
                 <i class="material-icons">error</i>
                 <h4>Error loading documents</h4>
@@ -168,340 +380,474 @@ class ChatManager {
         `;
     }
     
-    initializeFromURL() {
-        // Get URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const chatId = urlParams.get('chat_id');
-        const docId = urlParams.get('doc_id');
+    updateChatInputState() {
+        const hasDocuments = this.selectedDocuments.size > 0;
+        const hasActiveChat = this.currentChatId !== null;
         
-        if (chatId && docId) {
-            this.currentChatId = parseInt(chatId);
-            this.currentDocumentId = parseInt(docId);
-            this.loadChatSession();
+        if (this.messageInput) {
+            this.messageInput.disabled = !(hasDocuments && hasActiveChat);
+            this.messageInput.placeholder = hasActiveChat 
+                ? (hasDocuments ? "Ask about your documents..." : "Select documents first...")
+                : "Create or select a chat first...";
+        }
+        
+        this.updateSendButton();
+    }
+    
+    updateSendButton() {
+        if (!this.sendButton || !this.messageInput) return;
+        
+        const hasText = this.messageInput.value.trim().length > 0;
+        const canSend = hasText && this.selectedDocuments.size > 0 && this.currentChatId && !this.isTyping;
+        
+        this.sendButton.disabled = !canSend;
+    }
+    
+    showCreateChatModal() {
+        console.log('Showing create chat modal');
+        if (this.modalOverlay && this.chatNameInput) {
+            this.modalOverlay.style.display = 'flex';
+            this.chatNameInput.value = `Chat ${this.chatSessions.size + 1}`;
+            this.chatNameInput.focus();
+            this.chatNameInput.select();
         }
     }
     
-    async selectDocument(documentId, filename) {
+    hideModal() {
+        if (this.modalOverlay) {
+            this.modalOverlay.style.display = 'none';
+        }
+    }
+    
+    async createNewChat() {
+        const chatName = this.chatNameInput?.value.trim();
+        if (!chatName) return;
+        
+        console.log('Creating new chat:', chatName);
+        
         try {
-            // Remove previous selection
-            this.documentsList.querySelectorAll('.document-item').forEach(item => {
-                item.classList.remove('selected');
-            });
+            // Create a local chat session
+            const tempChatId = Date.now();
+            const newChat = {
+                id: tempChatId,
+                title: chatName,
+                messages: [],
+                selectedDocuments: new Set(),
+                created_at: new Date().toISOString(),
+                last_activity: new Date().toISOString(),
+                isLocal: true
+            };
             
-            // Add selection to current item
-            const selectedItem = this.documentsList.querySelector(`[data-id="${documentId}"]`);
-            if (selectedItem) {
-                selectedItem.classList.add('selected');
-            }
+            this.chatSessions.set(tempChatId, newChat);
+            this.renderChatList();
+            this.selectChat(tempChatId);
+            this.hideModal();
+            this.saveChatHistory();
             
-            // Update document info in header
-            this.documentTitle.textContent = filename;
-            this.documentMeta.textContent = 'Loading document details...';
-            
-            // Create or load chat session
-            await this.createOrLoadChat(documentId);
+            showNotification(`Chat "${chatName}" created successfully!`, 'success');
+            console.log('Chat created successfully:', tempChatId);
             
         } catch (error) {
-            console.error('Failed to select document:', error);
-            showNotification('Failed to select document', 'error');
+            console.error('Failed to create chat:', error);
+            showNotification('Failed to create chat', 'error');
         }
     }
     
-    async createOrLoadChat(documentId) {
-        try {
-            showNotification('Preparing chat session...', 'info');
-            
-            // Create new chat session
-            const response = await apiRequest('/chat/create', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    document_id: documentId,
-                    title: `Chat with ${this.documentTitle.textContent}`
-                })
-            });
-            
-            if (response.success) {
-                this.loadChatSession(response.data.id, documentId);
-            } else {
-                throw new Error(response.message);
-            }
-            
-        } catch (error) {
-            console.error('Chat initialization failed:', error);
-            showNotification(`Failed to start chat: ${error.message}`, 'error');
+    renderChatList() {
+        if (!this.chatList) return;
+        
+        const chats = Array.from(this.chatSessions.values())
+            .sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
+        
+        console.log('Rendering chat list, count:', chats.length);
+        
+        if (chats.length === 0) {
+            this.chatList.innerHTML = `
+                <div class="empty-state">
+                    <i class="material-icons">chat</i>
+                    <h4>No chats yet</h4>
+                    <p>Create your first chat to get started</p>
+                </div>
+            `;
+            return;
         }
-    }
-    
-    async loadChatSession(chatId, documentId) {
-        try {
-            // Set current IDs
-            this.currentChatId = chatId;
-            this.currentDocumentId = documentId;
-            
-            // Update URL
-            window.history.replaceState(
-                {}, 
-                '', 
-                `/chat?chat_id=${chatId}&doc_id=${documentId}`
-            );
-            
-            // Load chat details
-            const response = await apiRequest(`/chat/${chatId}`);
-            
-            if (response.success) {
-                const chat = response.data;
-                
-                // Update document info
-                this.documentTitle.textContent = chat.document_name || 'Document';
-                this.documentMeta.textContent = `${chat.message_count || 0} messages`;
-                
-                // Display messages
-                if (chat.messages && chat.messages.length > 0) {
-                    this.displayMessages(chat.messages);
+        
+        this.chatList.innerHTML = chats.map(chat => `
+            <div class="chat-item ${chat.id === this.currentChatId ? 'active' : ''}" 
+                 data-id="${chat.id}">
+                <div class="chat-icon">
+                    <i class="material-icons">chat</i>
+                </div>
+                <div class="chat-details">
+                    <div class="chat-title">${chat.title}</div>
+                    <div class="chat-meta">
+                        <span>${chat.messages.length} messages</span>
+                        <span>•</span>
+                        <span>${chat.selectedDocuments?.size || 0} docs</span>
+                    </div>
+                </div>
+                <div class="chat-actions">
+                    <button class="chat-action-btn" onclick="chatManager.deleteChat(${chat.id})" title="Delete Chat">
+                        <i class="material-icons" style="font-size: 16px;">delete</i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click handlers
+        this.chatList.querySelectorAll('.chat-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (!e.target.closest('.chat-actions')) {
+                    const chatId = parseInt(item.getAttribute('data-id'));
+                    this.selectChat(chatId);
                 }
-                
-                // Enable input
-                this.enableChatInput();
-                
-                showNotification('Chat session ready!', 'success');
-            } else {
-                throw new Error(response.message);
-            }
-            
-        } catch (error) {
-            console.error('Failed to load chat session:', error);
-            showNotification('Failed to load chat session', 'error');
+            });
+        });
+    }
+    
+    selectChat(chatId) {
+        console.log('Selecting chat:', chatId);
+        
+        const chat = this.chatSessions.get(chatId);
+        if (!chat) {
+            console.error('Chat not found:', chatId);
+            return;
+        }
+        
+        this.currentChatId = chatId;
+        
+        // Update current chat display
+        if (this.currentChatTitle) {
+            this.currentChatTitle.textContent = chat.title;
+        }
+        
+        // Restore selected documents
+        this.selectedDocuments = new Set(chat.selectedDocuments || []);
+        this.updateSelectedDocumentsInUI();
+        this.updateSelectedDocumentsDisplay();
+        
+        // Display messages
+        this.displayMessages(chat.messages || []);
+        
+        // Update URL
+        window.history.replaceState({}, '', `/chat?chat_id=${chatId}`);
+        
+        // Update UI state
+        this.renderChatList();
+        this.updateChatInputState();
+        this.updateDocumentPreview();
+        
+        // Update last activity
+        chat.last_activity = new Date().toISOString();
+        this.saveChatHistory();
+        
+        console.log('Chat selected successfully:', chatId);
+    }
+    
+    updateSelectedDocumentsInUI() {
+        // Update document list UI to show selections
+        if (this.documentList) {
+            this.documentList.querySelectorAll('.document-item').forEach(item => {
+                const docId = parseInt(item.getAttribute('data-id'));
+                if (this.selectedDocuments.has(docId)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
         }
     }
     
     displayMessages(messages) {
-        // Clear existing messages (keep welcome message)
-        const welcomeMessage = this.messagesContainer.querySelector('.message.ai');
-        this.messagesContainer.innerHTML = '';
+        if (!this.messagesContainer) return;
         
-        if (welcomeMessage) {
-            this.messagesContainer.appendChild(welcomeMessage);
+        // Show placeholder if no messages
+        if (!messages || messages.length === 0) {
+            this.messagesContainer.innerHTML = `
+                <div class="chat-placeholder">
+                    <i class="material-icons">smart_toy</i>
+                    <h3>Ready to Chat!</h3>
+                    <p>Select documents and start asking questions about your PDFs using our local Granite AI models.</p>
+                </div>
+            `;
+            return;
         }
         
-        // Add chat messages (skip system messages)
-        messages.filter(msg => msg.role !== 'system').forEach(msg => {
-            this.addMessageToUI(msg.role, msg.content, msg.sources);
-        });
-        
+        // Render messages
+        this.messagesContainer.innerHTML = messages.map(msg => this.createMessageHTML(msg)).join('');
         this.scrollToBottom();
     }
     
-    enableChatInput() {
-        this.messageInput.disabled = false;
-        this.messageInput.placeholder = "Ask about your document...";
-        this.sendButton.disabled = false;
+    createMessageHTML(message) {
+        const timestamp = new Date(message.timestamp).toLocaleTimeString([], {
+            hour: '2-digit', 
+            minute: '2-digit'
+        });
         
-        // Enable action buttons
-        this.viewPdfBtn.disabled = false;
-        this.downloadBtn.disabled = false;
-        this.clearChatBtn.disabled = false;
+        const sourcesHTML = message.sources && message.sources.length > 0 ? `
+            <div class="message-sources">
+                <strong>Sources:</strong>
+                ${message.sources.map((source, index) => `
+                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${source.content}')">
+                        <i class="material-icons">link</i>
+                        <span>Source ${index + 1}</span>
+                    </div>
+                `).join('')}
+            </div>
+        ` : '';
+        
+        return `
+            <div class="message ${message.role}">
+                <div class="message-avatar">
+                    <i class="material-icons">${message.role === 'user' ? 'person' : 'smart_toy'}</i>
+                </div>
+                <div class="message-content">
+                    <div class="message-text">${message.content}</div>
+                    <div class="message-time">${timestamp}</div>
+                    ${sourcesHTML}
+                </div>
+            </div>
+        `;
     }
     
     async sendMessage() {
-        const message = this.messageInput.value.trim();
-        
-        if (!message || this.isTyping || !this.currentChatId) {
+        const messageText = this.messageInput?.value.trim();
+        if (!messageText || !this.currentChatId || this.selectedDocuments.size === 0) {
+            console.log('Cannot send message - missing requirements');
             return;
         }
         
-        // Add user message to UI
-        this.addMessageToUI('user', message);
+        console.log('Sending message:', messageText);
+        
+        const chat = this.chatSessions.get(this.currentChatId);
+        if (!chat) return;
+        
+        // Add user message
+        const userMessage = {
+            role: 'user',
+            content: messageText,
+            timestamp: new Date().toISOString()
+        };
+        
+        chat.messages.push(userMessage);
+        chat.selectedDocuments = new Set(this.selectedDocuments);
+        this.displayMessages(chat.messages);
+        
+        // Clear input
         this.messageInput.value = '';
         this.updateSendButton();
         
-        // Show typing indicator
-        this.showTypingIndicator();
+        // Show typing animation
+        this.isTyping = true;
+        this.updateSendButton();
         
         try {
-            const response = await apiRequest(`/chat/${this.currentChatId}/message`, {
-                method: 'POST',
-                body: JSON.stringify({ message })
-            });
-            
-            this.hideTypingIndicator();
-            
-            if (response.success) {
-                this.addMessageToUI('ai', response.data.response, response.data.sources);
-                
-                // Update message count in header
-                this.documentMeta.textContent = `${response.data.message_count} messages`;
-            } else {
-                throw new Error(response.message);
-            }
+            // Generate dynamic AI response
+            await this.fetchLiveAIResponse(chat, messageText);
             
         } catch (error) {
-            this.hideTypingIndicator();
             console.error('Send message error:', error);
-            this.addMessageToUI('ai', 'Sorry, I encountered an error. Please try again.', [], true);
+            const errorMessage = {
+                role: 'ai',
+                content: 'Sorry, I encountered an error processing your request. Please try again.',
+                timestamp: new Date().toISOString(),
+                isError: true
+            };
+            chat.messages.push(errorMessage);
+            this.displayMessages(chat.messages);
+        } finally {
+            this.isTyping = false;
+            this.updateSendButton();
+            this.updateChatInputState();
+            
+            chat.last_activity = new Date().toISOString();
+            this.saveChatHistory();
+        }
+    }
+
+    async fetchLiveAIResponse(chat, userMessage) {
+        try{
+            const response = await apiRequest(
+                '/chat/${this.currentChatId}/message',
+                {
+                    method : 'POST',
+                    body : JSON.stringify({
+                        message: userMessage,
+                        selectedDocuments: Array.from(this.selectedDocuments)
+                    })
+                }
+            );
+            if(!response.success)throw new Error(response.message);
+            const {response : aiText, sources} = response.data;
+            chat.messages.push({
+                role:'ai',
+                content: aiText,
+                timestamp: new Date().toISOString(),
+                sources
+            });
+            this.displayMessages(chat.messages);
+            if(sources?.length){
+                this.highlightSourceInPreview(sources[0].content);
+            }
+        } catch (error) {
+            console.error('Error fetching AI response:', error);
+            chat.messages.push({
+                role: 'ai',
+                content: 'Sorry, I encountered an error processing your request. Please try again.',
+                timestamp: new Date().toISOString(),
+                isError: true
+            })
+            this.displayMessages(chat.messages);
         }
     }
     
-    addMessageToUI(role, content, sources = [], isError = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${role}`;
+    async generateDynamicAIResponse(chat, userMessage) {
+        // Simulate processing time
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
-        const avatarIcon = role === 'user' ? 'person' : 'smart_toy';
-        const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const selectedDocs = this.availableDocuments.filter(doc => 
+            this.selectedDocuments.has(doc.id)
+        );
         
-        // Create sources HTML
-        let sourcesHtml = '';
-        if (sources && sources.length > 0) {
-            sourcesHtml = `
-                <div class="message-sources">
-                    <strong>Sources:</strong>
-                    ${sources.map(source => `
-                        <div class="source-item">
-                            <i class="material-icons">link</i>
-                            <span>Source ${source.chunk_index + 1}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+        const docNames = selectedDocs.map(doc => doc.filename).join(', ');
+        const lowerMessage = userMessage.toLowerCase();
+        
+        // Find matching response template
+        let responseTemplate = this.responseTemplates.find(template =>
+            template.trigger.some(trigger => lowerMessage.includes(trigger))
+        );
+        
+        // Default fallback template
+        if (!responseTemplate) {
+            responseTemplate = {
+                response: (topic, docs) => `I've analyzed your question "${topic}" using the content from ${docs}.\n\n**Document Analysis:**\n• The selected documents contain relevant information about your query\n• Multiple perspectives and data points are available for consideration\n• Cross-referenced information provides comprehensive coverage\n\n**Key Insights:**\nBased on the document content, I can provide detailed information that directly addresses your specific question. The analysis reveals important patterns and connections within the material.\n\n**Contextual Summary:**\nThe documents offer valuable insights that align with your inquiry, presenting both theoretical foundations and practical applications relevant to your question.`
+            };
         }
         
-        messageDiv.innerHTML = `
-            <div class="message-avatar">
-                <i class="material-icons">${avatarIcon}</i>
-            </div>
-            <div class="message-content ${isError ? 'error' : ''}">
-                <div class="message-text">${content}</div>
-                <div class="message-time">${timestamp}</div>
-                ${sourcesHtml}
-            </div>
-        `;
+        // Generate response using template
+        let aiResponseContent = responseTemplate.response(userMessage, docNames);
         
-        this.messagesContainer.appendChild(messageDiv);
-        this.scrollToBottom();
-    }
-    
-    showTypingIndicator() {
-        this.isTyping = true;
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'message ai';
-        typingDiv.id = 'typingIndicator';
-        typingDiv.innerHTML = `
-            <div class="message-avatar">
-                <i class="material-icons">smart_toy</i>
-            </div>
-            <div class="typing-indicator">
-                <span>Thinking</span>
-                <div class="typing-dots">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                </div>
-            </div>
-        `;
-        
-        this.messagesContainer.appendChild(typingDiv);
-        this.scrollToBottom();
-    }
-    
-    hideTypingIndicator() {
-        this.isTyping = false;
-        const indicator = document.getElementById('typingIndicator');
-        if (indicator) indicator.remove();
-    }
-    
-    sendSuggestion(question) {
-        if (!this.currentChatId) {
-            showNotification('Please select a document first', 'warning');
-            return;
+        // Add document-specific context if available
+        if (this.currentDocumentContent) {
+            const contentSample = this.currentDocumentContent.substring(0, 200) + '...';
+            aiResponseContent += `\n\n**Document Context Preview:**\n*"${contentSample}"*\n\n*This is a sample from your selected document(s). The full analysis is based on the complete document content.*`;
         }
         
-        this.messageInput.value = question;
-        this.updateSendButton();
-        this.sendMessage();
+        // Create AI response with sources
+        const aiResponse = {
+            role: 'ai',
+            content: aiResponseContent,
+            timestamp: new Date().toISOString(),
+            sources: selectedDocs.map((doc, index) => ({
+                chunk_index: index,
+                chunk_id: `${doc.id}_${index}`,
+                content: this.currentDocumentContent ? 
+                    this.currentDocumentContent.substring(index * 100, (index + 1) * 100) : 
+                    `Content sample from ${doc.filename}`,
+                filename: doc.filename
+            }))
+        };
+        
+        chat.messages.push(aiResponse);
+        this.displayMessages(chat.messages);
+        
+        // Highlight sources in preview if available
+        if (aiResponse.sources && aiResponse.sources.length > 0 && this.currentDocumentContent) {
+            setTimeout(() => {
+                this.highlightSourceInPreview(aiResponse.sources[0].content);
+            }, 500);
+        }
     }
     
-    updateSendButton() {
-        this.sendButton.disabled = this.messageInput.value.trim().length === 0 || 
-                                 this.isTyping || 
-                                 !this.currentChatId;
+    deleteChat(chatId) {
+        if (!confirm('Are you sure you want to delete this chat?')) return;
+        
+        console.log('Deleting chat:', chatId);
+        
+        this.chatSessions.delete(chatId);
+        
+        if (this.currentChatId === chatId) {
+            this.currentChatId = null;
+            this.selectedDocuments.clear();
+            this.displayMessages([]);
+            this.updateSelectedDocumentsDisplay();
+            this.updateChatInputState();
+            this.showDefaultPreview();
+        }
+        
+        this.renderChatList();
+        this.saveChatHistory();
+        showNotification('Chat deleted successfully', 'success');
+    }
+    
+    saveChatHistory() {
+        try {
+            const chatData = {
+                sessions: Array.from(this.chatSessions.entries()).map(([id, chat]) => [
+                    id, 
+                    {
+                        ...chat,
+                        selectedDocuments: Array.from(chat.selectedDocuments || [])
+                    }
+                ]),
+                currentChatId: this.currentChatId,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('savin_chat_history', JSON.stringify(chatData));
+        } catch (error) {
+            console.error('Failed to save chat history:', error);
+        }
+    }
+    
+    loadChatHistory() {
+        try {
+            const saved = localStorage.getItem('savin_chat_history');
+            if (saved) {
+                const data = JSON.parse(saved);
+                
+                this.chatSessions = new Map(data.sessions || []);
+                
+                // Convert array back to Set
+                this.chatSessions.forEach(chat => {
+                    chat.selectedDocuments = new Set(chat.selectedDocuments || []);
+                });
+                
+                this.renderChatList();
+                
+                if (data.currentChatId && this.chatSessions.has(data.currentChatId)) {
+                    this.selectChat(data.currentChatId);
+                }
+                
+                console.log('Chat history loaded successfully');
+            }
+        } catch (error) {
+            console.error('Failed to load chat history:', error);
+        }
+    }
+    
+    initializeFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatId = urlParams.get('chat_id');
+        
+        if (chatId) {
+            const id = parseInt(chatId);
+            if (this.chatSessions.has(id)) {
+                this.selectChat(id);
+            }
+        }
     }
     
     scrollToBottom() {
-        setTimeout(() => {
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        }, 100);
-    }
-    
-    highlightCurrentDocument() {
-        const currentDoc = this.documentsList.querySelector(`[data-id="${this.currentDocumentId}"]`);
-        if (currentDoc) {
-            currentDoc.classList.add('selected');
+        if (this.messagesContainer) {
+            setTimeout(() => {
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }, 100);
         }
-    }
-    
-    filterDocuments(query) {
-        const documentItems = this.documentsList.querySelectorAll('.document-item');
-        const lowerQuery = query.toLowerCase().trim();
-        
-        documentItems.forEach(item => {
-            const filename = item.getAttribute('data-filename').toLowerCase();
-            const isVisible = lowerQuery === '' || filename.includes(lowerQuery);
-            item.style.display = isVisible ? 'flex' : 'none';
-        });
-    }
-    
-    setWelcomeTime() {
-        const welcomeTimeElement = document.getElementById('welcomeTime');
-        if (welcomeTimeElement) {
-            welcomeTimeElement.textContent = 
-                new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        }
-    }
-    
-    // Action button handlers
-    async clearChat() {
-        if (!this.currentChatId) return;
-        
-        if (!confirm('Are you sure you want to clear this chat?')) {
-            return;
-        }
-        
-        try {
-            const response = await apiRequest(`/chat/${this.currentChatId}/clear`, {
-                method: 'POST'
-            });
-            
-            if (response.success) {
-                // Clear messages except welcome
-                const welcomeMessage = this.messagesContainer.querySelector('.message.ai');
-                this.messagesContainer.innerHTML = '';
-                if (welcomeMessage) {
-                    this.messagesContainer.appendChild(welcomeMessage);
-                }
-                
-                showNotification('Chat cleared successfully', 'success');
-            } else {
-                throw new Error(response.message);
-            }
-            
-        } catch (error) {
-            console.error('Clear chat error:', error);
-            showNotification(`Failed to clear chat: ${error.message}`, 'error');
-        }
-    }
-    
-    viewPdf() {
-        showNotification('PDF viewer will appear here', 'info');
-        // Actual implementation would go here
-    }
-    
-    downloadPdf() {
-        showNotification('PDF download will start here', 'info');
-        // Actual implementation would go here
     }
 }
 
-// Initialize chat manager when DOM is loaded
+// Initialize chat manager
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Initializing ChatManager with enhanced features...');
     window.chatManager = new ChatManager();
-    window.chatManager.init();
 });

@@ -1,12 +1,13 @@
 """
-Document API Routes
-Complete document management with clean error handling
+Document API Routes - Complete Implementation
 """
 
-from flask import Blueprint, request, jsonify, current_app # type: ignore
-from werkzeug.utils import secure_filename # type: ignore
+from flask import Blueprint, request, jsonify, current_app
+from werkzeug.utils import secure_filename
 from app.services.document_service import DocumentService
 from app.services.auth_service import AuthService
+import os
+import PyPDF2
 
 document_bp = Blueprint('document', __name__)
 
@@ -136,3 +137,66 @@ def delete_document(document_id):
             'success': False,
             'message': f'Delete failed: {str(e)}'
         }), 500
+
+@document_bp.route('/<int:document_id>/content', methods=['GET'])
+def get_document_content(document_id):
+    """Get full document content for preview"""
+    try:
+        user = AuthService.get_current_user()
+        document = DocumentService.get_document_status(document_id, user.id)
+        
+        if not document:
+            return jsonify({
+                'success': False, 
+                'message': 'Document not found'
+            }), 404
+        
+        # Get the actual file path from the document
+        file_path = document.get('file_path')  # Adjust based on your Document model
+        
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({
+                'success': False,
+                'message': 'Document file not found'
+            }), 404
+        
+        # Extract text from PDF
+        text_content = get_pdf_text_content(file_path)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'content': text_content,
+                'filename': document.get('filename'),
+                'file_size': document.get('file_size')
+            }
+        }), 200
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get document content: {str(e)}'
+        }), 500
+
+def get_pdf_text_content(file_path):
+    """Extract text from PDF file"""
+    try:
+        text = ""
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page_num in range(len(pdf_reader.pages)):
+                try:
+                    page = pdf_reader.pages[page_num]
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += f"\n--- Page {page_num + 1} ---\n"
+                        text += page_text
+                except Exception as e:
+                    print(f"Error extracting page {page_num + 1}: {e}")
+                    continue
+        
+        return text.strip()
+            
+    except Exception as e:
+        print(f"PDF extraction error: {e}")
+        return "Could not extract text content from PDF"
