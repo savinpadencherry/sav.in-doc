@@ -64,7 +64,7 @@ class ChatManager {
     init() {
         this.setupEventListeners();
         this.loadDocuments();
-        this.loadChatHistory();
+        this.loadChats();
         this.initializeFromURL();
         this.initializePdfPreview();
         console.log('ChatManager initialized with enhanced AI responses');
@@ -165,6 +165,47 @@ class ChatManager {
         } catch (error) {
             console.error('Failed to load documents:', error);
             this.renderDocumentError('Failed to load documents: ' + error.message);
+        }
+    }
+
+    async loadChats() {
+        if (!this.chatList) return;
+
+        this.chatList.innerHTML = `
+            <div class="loading-placeholder">
+                <div class="spinner"></div>
+                <p>Loading chats...</p>
+            </div>
+        `;
+
+        try {
+            const response = await apiRequest('/chat/list');
+
+            if (response.success && response.data) {
+                this.chatSessions = new Map();
+                response.data.forEach(chat => {
+                    this.chatSessions.set(chat.id, {
+                        id: chat.id,
+                        title: chat.title,
+                        messages: [],
+                        selectedDocuments: new Set(),
+                        created_at: chat.created_at,
+                        last_activity: chat.last_activity
+                    });
+                });
+                this.renderChatList();
+            } else {
+                throw new Error(response.message || 'No data received');
+            }
+        } catch (error) {
+            console.error('Failed to load chats:', error);
+            this.chatList.innerHTML = `
+                <div class="empty-state">
+                    <i class="material-icons">error</i>
+                    <h4>Error loading chats</h4>
+                    <p>${error.message}</p>
+                </div>
+            `;
         }
     }
     
@@ -426,26 +467,33 @@ class ChatManager {
         console.log('Creating new chat:', chatName);
         
         try {
-            // Create a local chat session
-            const tempChatId = Date.now();
+            const response = await apiRequest('/chat/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title: chatName,
+                    document_ids: Array.from(this.selectedDocuments)
+                })
+            });
+
+            if (!response.success) throw new Error(response.message);
+
+            const chatData = response.data;
             const newChat = {
-                id: tempChatId,
-                title: chatName,
+                id: chatData.id,
+                title: chatData.title,
                 messages: [],
-                selectedDocuments: new Set(),
-                created_at: new Date().toISOString(),
-                last_activity: new Date().toISOString(),
-                isLocal: true
+                selectedDocuments: new Set(chatData.selected_documents || []),
+                created_at: chatData.created_at,
+                last_activity: chatData.last_activity
             };
-            
-            this.chatSessions.set(tempChatId, newChat);
+
+            this.chatSessions.set(newChat.id, newChat);
             this.renderChatList();
-            this.selectChat(tempChatId);
+            await this.selectChat(newChat.id);
             this.hideModal();
-            this.saveChatHistory();
-            
+
             showNotification(`Chat "${chatName}" created successfully!`, 'success');
-            console.log('Chat created successfully:', tempChatId);
+            console.log('Chat created successfully:', newChat.id);
             
         } catch (error) {
             console.error('Failed to create chat:', error);
@@ -496,24 +544,36 @@ class ChatManager {
         
         // Add click handlers
         this.chatList.querySelectorAll('.chat-item').forEach(item => {
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', async (e) => {
                 if (!e.target.closest('.chat-actions')) {
                     const chatId = parseInt(item.getAttribute('data-id'));
-                    this.selectChat(chatId);
+                    await this.selectChat(chatId);
                 }
             });
         });
     }
     
-    selectChat(chatId) {
+    async selectChat(chatId) {
         console.log('Selecting chat:', chatId);
-        
-        const chat = this.chatSessions.get(chatId);
+
+        let chat = this.chatSessions.get(chatId);
         if (!chat) {
             console.error('Chat not found:', chatId);
             return;
         }
-        
+
+        // Fetch chat details if messages not loaded yet
+        if (!chat.messages || chat.messages.length === 0) {
+            try {
+                const response = await apiRequest(`/chat/${chatId}`);
+                if (response.success && response.data) {
+                    chat.messages = response.data.messages || [];
+                }
+            } catch (error) {
+                console.error('Failed to fetch chat details:', error);
+            }
+        }
+
         this.currentChatId = chatId;
         
         // Update current chat display
@@ -815,7 +875,7 @@ class ChatManager {
                 this.renderChatList();
                 
                 if (data.currentChatId && this.chatSessions.has(data.currentChatId)) {
-                    this.selectChat(data.currentChatId);
+                    await this.selectChat(data.currentChatId);
                 }
                 
                 console.log('Chat history loaded successfully');
@@ -825,14 +885,14 @@ class ChatManager {
         }
     }
     
-    initializeFromURL() {
+    async initializeFromURL() {
         const urlParams = new URLSearchParams(window.location.search);
         const chatId = urlParams.get('chat_id');
-        
+
         if (chatId) {
             const id = parseInt(chatId);
             if (this.chatSessions.has(id)) {
-                this.selectChat(id);
+                await this.selectChat(id);
             }
         }
     }
