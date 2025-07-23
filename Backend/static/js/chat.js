@@ -299,8 +299,17 @@ class ChatManager {
     updateDocumentPreview() {
         if (!this.pdfPreview) return;
         
-        if (this.selectedDocuments.size === 0 || !this.currentDocumentContent) {
+        if (this.selectedDocuments.size === 0) {
             this.showDefaultPreview();
+            return;
+        }
+
+        if (!this.currentDocumentContent) {
+            this.pdfPreview.innerHTML = `
+                <div class="document-preview">
+                    <p>No preview available. The document might still be processing.</p>
+                </div>
+            `;
             return;
         }
         
@@ -426,8 +435,8 @@ class ChatManager {
         const hasActiveChat = this.currentChatId !== null;
         
         if (this.messageInput) {
-            this.messageInput.disabled = !(hasDocuments && hasActiveChat);
-            this.messageInput.placeholder = hasActiveChat 
+            this.messageInput.disabled = !(hasDocuments && hasActiveChat) || this.isTyping;
+            this.messageInput.placeholder = hasActiveChat
                 ? (hasDocuments ? "Ask about your documents..." : "Select documents first...")
                 : "Create or select a chat first...";
         }
@@ -692,6 +701,7 @@ class ChatManager {
         chat.messages.push(userMessage);
         chat.selectedDocuments = new Set(this.selectedDocuments);
         this.displayMessages(chat.messages);
+        this.showThinkingMessage();
         
         // Clear input
         this.messageInput.value = '';
@@ -699,7 +709,7 @@ class ChatManager {
         
         // Show typing animation
         this.isTyping = true;
-        this.updateSendButton();
+        this.updateChatInputState();
         
         try {
             // Generate dynamic AI response
@@ -716,8 +726,8 @@ class ChatManager {
             chat.messages.push(errorMessage);
             this.displayMessages(chat.messages);
         } finally {
+            this.removeThinkingMessage();
             this.isTyping = false;
-            this.updateSendButton();
             this.updateChatInputState();
             
             chat.last_activity = new Date().toISOString();
@@ -739,6 +749,7 @@ class ChatManager {
             );
             if(!response.success)throw new Error(response.message);
             const {response : aiText, sources} = response.data;
+            this.removeThinkingMessage();
             chat.messages.push({
                 role:'ai',
                 content: aiText,
@@ -751,6 +762,7 @@ class ChatManager {
             }
         } catch (error) {
             console.error('Error fetching AI response:', error);
+            this.removeThinkingMessage();
             chat.messages.push({
                 role: 'ai',
                 content: 'Sorry, I encountered an error processing your request. Please try again.',
@@ -896,7 +908,28 @@ class ChatManager {
             }
         }
     }
-    
+
+    showThinkingMessage() {
+        if (!this.messagesContainer || document.getElementById('thinkingMessage')) return;
+        const html = `
+            <div class="message ai thinking" id="thinkingMessage">
+                <div class="message-avatar">
+                    <i class="material-icons">smart_toy</i>
+                </div>
+                <div class="message-content">
+                    <div class="spinner small"></div>
+                    <div class="message-text">Thinking...</div>
+                </div>
+            </div>`;
+        this.messagesContainer.insertAdjacentHTML('beforeend', html);
+        this.scrollToBottom();
+    }
+
+    removeThinkingMessage() {
+        const el = document.getElementById('thinkingMessage');
+        if (el) el.remove();
+    }
+
     scrollToBottom() {
         if (this.messagesContainer) {
             setTimeout(() => {

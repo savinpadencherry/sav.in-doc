@@ -327,7 +327,7 @@ body::after {
     max-width: 1200px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1fr 360px;
+    grid-template-columns: 1fr 1fr; /* make both sections equal width */
     gap: 24px;
     min-height: calc(100vh - 140px);
     align-items: start;
@@ -630,12 +630,12 @@ body::after {
 .chat-layout {
     display: grid;
     grid-template-columns: 350px 1fr 450px;
-    height: calc(100vh - 90px); /* ADJUSTED FOR NAVBAR SPACING */
+    height: calc(100vh - 70px); /* reduce extra spacing below navbar */
     max-width: 1800px;
     margin: 0 auto;
-    gap: 2px;
+    gap: 24px; /* more breathing room between panels */
     overflow: hidden;
-    margin-top: 90px; /* CRITICAL FIX - PROPER SPACING FROM NAVBAR */
+    margin-top: 70px; /* align with navbar height */
     padding: 20px;
 }
 
@@ -1193,6 +1193,18 @@ body::after {
     border-bottom-left-radius: var(--radius-lg);
 }
 
+.message.thinking .message-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.message.thinking .message-text {
+    margin-bottom: 0;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
 .message-text {
     font-size: 16px;
     line-height: 1.7;
@@ -1305,6 +1317,12 @@ body::after {
     border-top: 4px solid var(--primary-color);
     border-radius: 50%;
     animation: spin 1s linear infinite;
+}
+
+.spinner.small {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
 }
 
 @keyframes spin {
