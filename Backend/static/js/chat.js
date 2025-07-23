@@ -284,15 +284,17 @@ class ChatManager {
         try {
             console.log('Loading content for document:', docId);
             const response = await apiRequest(`/document/${docId}/content`);
-            
+
             if (response.success && response.data.content) {
                 this.currentDocumentContent = response.data.content;
                 console.log('Document content loaded, length:', this.currentDocumentContent.length);
             } else {
                 console.warn('No content available for document:', docId);
+                showNotification('Document preview not available', 'warning');
             }
         } catch (error) {
             console.error('Failed to load document content:', error);
+            showNotification('Failed to load preview', 'error');
         }
     }
     
@@ -831,13 +833,27 @@ class ChatManager {
         }
     }
     
-    deleteChat(chatId) {
+    async deleteChat(chatId) {
         if (!confirm('Are you sure you want to delete this chat?')) return;
-        
+
         console.log('Deleting chat:', chatId);
-        
+
+        try {
+            const response = await apiRequest(`/chat/${chatId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.success) {
+                throw new Error(response.message);
+            }
+        } catch (error) {
+            console.error('Failed to delete chat:', error);
+            showNotification('Failed to delete chat', 'error');
+            return;
+        }
+
         this.chatSessions.delete(chatId);
-        
+
         if (this.currentChatId === chatId) {
             this.currentChatId = null;
             this.selectedDocuments.clear();
@@ -846,7 +862,7 @@ class ChatManager {
             this.updateChatInputState();
             this.showDefaultPreview();
         }
-        
+
         this.renderChatList();
         this.saveChatHistory();
         showNotification('Chat deleted successfully', 'success');
