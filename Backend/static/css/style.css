@@ -330,13 +330,18 @@ body::after {
     grid-template-columns: 1fr 1fr; /* make both sections equal width */
     gap: 24px;
     min-height: calc(100vh - 140px);
-    align-items: start;
+    align-items: stretch; /* match column heights */
 }
 
 .upload-section {
     display: flex;
     flex-direction: column;
     gap: 32px;
+}
+
+.upload-card,
+.documents-section {
+    height: 100%;
 }
 
 .upload-card {
@@ -418,7 +423,7 @@ body::after {
 }
 
 .upload-area {
-    padding: 60px 40px;
+    padding: 40px 32px;
     cursor: pointer;
     position: relative;
     transition: all var(--transition-normal);
@@ -630,12 +635,12 @@ body::after {
 .chat-layout {
     display: grid;
     grid-template-columns: 350px 1fr 450px;
-    height: calc(100vh - 70px); /* reduce extra spacing below navbar */
+    height: calc(100vh - 100px); /* reduced top spacing */
     max-width: 1800px;
     margin: 0 auto;
     gap: 24px; /* more breathing room between panels */
     overflow: hidden;
-    margin-top: 70px; /* align with navbar height */
+    margin-top: 10px; /* less space below navbar */
     padding: 20px;
 }
 
@@ -1197,12 +1202,27 @@ body::after {
     display: flex;
     align-items: center;
     gap: 12px;
+    background: linear-gradient(135deg, var(--primary-lighter), var(--primary-light));
+    color: var(--primary-dark);
+    border-radius: var(--radius-xl);
+    opacity: 0.9;
 }
 
 .message.thinking .message-text {
     margin-bottom: 0;
-    font-style: italic;
-    color: var(--text-secondary);
+    font-style: normal;
+    font-weight: 600;
+    color: var(--primary-dark);
+    animation: pulseFade 1.5s ease-in-out infinite;
+}
+
+.message.thinking .spinner.small {
+    border-top-color: var(--primary-dark);
+}
+
+@keyframes pulseFade {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
 
 .message-text {
