@@ -11,6 +11,7 @@ class ChatManager {
         this.isTyping = false;
         this.availableDocuments = [];
         this.currentDocumentContent = null;
+        this.thinkingLines = [];
         
         // DOM Elements
         this.chatList = document.getElementById('chatList');
@@ -120,6 +121,8 @@ class ChatManager {
         
         this.showDefaultPreview();
     }
+
+    
     
     showDefaultPreview() {
         if (this.pdfPreview) {
@@ -515,6 +518,8 @@ class ChatManager {
             showNotification('Failed to create chat', 'error');
         }
     }
+
+    
     
     renderChatList() {
         if (!this.chatList) return;
@@ -642,7 +647,7 @@ class ChatManager {
                 <div class="chat-placeholder">
                     <i class="material-icons">smart_toy</i>
                     <h3>Ready to Chat!</h3>
-                    <p>Select documents and start asking questions about your PDFs using our local Granite AI models.</p>
+                    <p>Select documents and start asking questions about your PDFs using our local Sav.in AI models.</p>
                 </div>
             `;
             return;
@@ -680,6 +685,8 @@ class ChatManager {
             </div>
         `;
     }
+
+    
     
     async sendMessage() {
         const messageText = this.messageInput?.value.trim();
@@ -934,12 +941,14 @@ class ChatManager {
                 </div>
                 <div class="message-content">
                     <div class="spinner small"></div>
-                    <div class="message-text">Thinking...</div>
+                    <div class="message-text">Thinking</div>
                 </div>
             </div>`;
         this.messagesContainer.insertAdjacentHTML('beforeend', html);
         this.scrollToBottom();
     }
+
+    
 
     removeThinkingMessage() {
         const el = document.getElementById('thinkingMessage');

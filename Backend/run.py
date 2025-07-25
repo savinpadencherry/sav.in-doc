@@ -36,7 +36,7 @@ def main():
     print(f"🔌 API Base: http://localhost:5002/api")
     print("=" * 60)
     print("⚠️  Authentication bypassed - Development mode")
-    print("🤖 Models: granite3.3:2b + granite-embedding:278m")
+    print("🤖 Models: qwen3:0.6b + granite-embedding:278m")
     print("=" * 60)
     
     # Force port 5002 to avoid macOS AirPlay conflicts

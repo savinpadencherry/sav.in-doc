@@ -27,7 +27,7 @@ class Config:
     
     # AI Model Configuration
     OLLAMA_BASE_URL = "http://localhost:11434"
-    LLM_MODEL = "granite3.3:2b"  # Your specified model
+    LLM_MODEL = "qwen3:0.6b"  # Your specified model
     EMBEDDING_MODEL = "granite-embedding:278m"  # Your specified embedding model
     
     # Vector Store Configuration (FAISS)

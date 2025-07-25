@@ -252,7 +252,7 @@ body::after {
 
 /* MAIN CONTENT - FIXED SPACING FROM NAVBAR */
 .main-content {
-    margin-top: 70px; /* reduce spacing below navbar */
+    margin-top: 40px; /* reduce spacing below navbar */
     min-height: calc(100vh - 70px);
     padding: 40px 32px;
     position: relative;
@@ -324,12 +324,12 @@ body::after {
 
 /* GORGEOUS UPLOAD SCREEN - WITH STARRY BACKGROUND */
 .upload-container {
-    max-width: 1200px;
+    max-width: 1300px;
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr 1fr; /* make both sections equal width */
     gap: 24px;
-    min-height: calc(100vh - 140px);
+    min-height: calc(100vh - 200px);
     align-items: stretch; /* match column heights */
 }
 
@@ -1198,32 +1198,88 @@ body::after {
     border-bottom-left-radius: var(--radius-lg);
 }
 
-.message.thinking .message-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: linear-gradient(135deg, var(--primary-lighter), var(--primary-light));
-    color: var(--primary-dark);
-    border-radius: var(--radius-xl);
-    opacity: 0.9;
+/* ───────────────────────────────────────────────
+   THINKING (assistant-typing) MESSAGE BUBBLE
+   ─────────────────────────────────────────────── */
+.message.thinking .message-content{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:16px 24px;
+  position:relative;
+  overflow:hidden;
+  border:2px solid rgba(255,255,255,0.25);
+  border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-lg);
+  background:linear-gradient(135deg,var(--primary-color),var(--primary-light));
+  color:var(--text-white);
 }
 
-.message.thinking .message-text {
-    margin-bottom: 0;
-    font-style: normal;
-    font-weight: 600;
-    color: var(--primary-dark);
-    animation: pulseFade 1.5s ease-in-out infinite;
+/* ⭐ starry layer + drift */
+.message.thinking .message-content::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%,rgba(255,255,255,0.8),transparent),
+    radial-gradient(1.5px 1.5px at 80% 70%,rgba(255,255,255,0.6),transparent),
+    radial-gradient(1px 1px at 50% 10%,rgba(255,255,255,0.9),transparent);
+  background-size:100px 100px;
+  animation:star-drift 15s linear infinite;
+  opacity:0.35;
 }
 
-.message.thinking .spinner.small {
-    border-top-color: var(--primary-dark);
+/* main text */
+.message.thinking .message-text{
+  margin:0;
+  font-weight:600;
+  position:relative;
+  max-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  scroll-behavior: smooth;
+  flex-direction: column;
+  display: flex;
+  justify-content: flex-end;
+  z-index:1;
+  text-shadow:0 1px 3px rgba(0,0,0,0.3);
+  color:var(--text-white);
 }
 
-@keyframes pulseFade {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+/* ⬤⬤⬤ animated dots */
+.message.thinking .message-text::after{
+  content:'';
+  display:inline-block;
+  width:60px;
+  height:12px;
+  margin-left:8px;
+  background-image:
+    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px),
+    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px),
+    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px);
+  background-size:12px 12px;
+  background-position:0 0,20px 0,40px 0;
+  background-repeat:no-repeat;
+  animation:wavyDots 1.4s ease-in-out infinite;
 }
+
+/* ─── KEYFRAMES ─── */
+@keyframes star-drift{
+  0%   { background-position:0 0; }
+  100% { background-position:100px 100px; }
+}
+
+@keyframes wavyDots{
+  0%,60%,100% { background-position:0 0,20px 0,40px 0; }
+  20%         { background-position:0 -4px,20px 0,40px 0; }
+  40%         { background-position:0 0,20px -4px,40px 0; }
+  60%         { background-position:0 0,20px 0,40px -4px; }
+}
+
+/* hide any spinner if you still mount it */
+.message.thinking .spinner.small{ display:none; }
 
 .message-text {
     font-size: 16px;

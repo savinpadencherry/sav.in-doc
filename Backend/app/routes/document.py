@@ -2,12 +2,12 @@
 Document API Routes - Complete Implementation
 """
 
-from flask import Blueprint, request, jsonify, current_app
-from werkzeug.utils import secure_filename
+from flask import Blueprint, request, jsonify, current_app # type: ignore
+from werkzeug.utils import secure_filename # type: ignore
 from app.services.document_service import DocumentService
 from app.services.auth_service import AuthService
 import os
-import PyPDF2
+import PyPDF2 # type: ignore
 
 document_bp = Blueprint('document', __name__)
 
