@@ -22,14 +22,30 @@ from app.models.chat import Chat
 
 logger = logging.getLogger(__name__)
 
+
+class DummyRedis:
+    """Fallback in-memory cache when Redis is unavailable."""
+
+    def get(self, *args, **kwargs):
+        return None
+
+    def setex(self, *args, **kwargs):
+        return None
+
 class RAGService:
     def __init__(self):
         """Initialize RAG service with Granite models"""
-        self.redis = redis.Redis(
-            host=current_app.config.get('REDIS_HOST', 'localhost'),
-            port=current_app.config.get('REDIS_PORT', 6379),
-            decode_responses=True,
-        )
+        try:
+            self.redis = redis.Redis(
+                host=current_app.config.get('REDIS_HOST', 'localhost'),
+                port=current_app.config.get('REDIS_PORT', 6379),
+                decode_responses=True,
+            )
+            # Trigger a connection to verify availability
+            self.redis.ping()
+        except Exception as exc:  # pragma: no cover - network dependent
+            logger.warning("Redis unavailable, falling back to DummyRedis: %s", exc)
+            self.redis = DummyRedis()
         self.llm = Ollama(
             model=current_app.config['LLM_MODEL'],
             base_url=current_app.config['OLLAMA_BASE_URL'],
