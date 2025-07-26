@@ -9,6 +9,7 @@ import shutil
 from datetime import datetime
 from flask import current_app  # type: ignore
 import logging
+import redis
 from langchain_community.embeddings import OllamaEmbeddings # type: ignore
 from langchain_community.vectorstores import FAISS # type: ignore
 from langchain_community.llms import Ollama # type: ignore
@@ -24,6 +25,11 @@ logger = logging.getLogger(__name__)
 class RAGService:
     def __init__(self):
         """Initialize RAG service with Granite models"""
+        self.redis = redis.Redis(
+            host=current_app.config.get('REDIS_HOST', 'localhost'),
+            port=current_app.config.get('REDIS_PORT', 6379),
+            decode_responses=True,
+        )
         self.llm = Ollama(
             model=current_app.config['LLM_MODEL'],
             base_url=current_app.config['OLLAMA_BASE_URL'],
@@ -91,6 +97,11 @@ class RAGService:
         """Enhanced chat with conversation memory"""
         try:
             logger.debug("Chat request for chat_id=%s", chat_id)
+            cache_key = f"chat:{chat_id}:{hash(user_message)}"
+            cached = self.redis.get(cache_key)
+            if cached:
+                logger.debug("Cache hit for %s", cache_key)
+                return True, "Response generated", json.loads(cached)
             chat = Chat.query.get(chat_id)
             if not chat:
                 logger.error("Chat %s not found", chat_id)
@@ -170,13 +181,14 @@ Answer:"""
             chat.add_message('assistant', response, sources)
             db.session.commit()
             logger.debug("Messages saved to chat %s", chat_id)
-            
-            return True, "Response generated", {
+            result = {
                 'response': response,
                 'sources': sources,
                 'message_count': chat.message_count,
                 'source_content': sources[0]['content'] if sources else ""
             }
+            self.redis.setex(cache_key, 3600, json.dumps(result))
+            return True, "Response generated", result
             
         except Exception as e:
             logger.exception("Chat failed for chat_id=%s", chat_id)
@@ -185,6 +197,15 @@ Answer:"""
     def chat_with_document_stream(self, chat_id, user_message):
         """Stream chat response token by token"""
         logger.debug("Streaming chat for chat_id=%s", chat_id)
+        cache_key = f"chat:{chat_id}:{hash(user_message)}"
+        cached = self.redis.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            def gen_cached():
+                for ch in data['response']:
+                    yield ch
+                yield json.dumps(data)
+            return True, gen_cached()
         chat = Chat.query.get(chat_id)
         if not chat:
             logger.error("Chat %s not found", chat_id)
@@ -246,8 +267,9 @@ Answer:"""
             response_text = ""
             for chunk in self.llm.stream(full_prompt):
                 logger.debug("LLM token: %s", chunk)
-                response_text += chunk
-                yield chunk
+                token = chunk.get("response", "") if isinstance(chunk, dict) else str(chunk)
+                response_text += token
+                yield token
 
             sources = []
             for doc in relevant_docs:
@@ -262,12 +284,14 @@ Answer:"""
             db.session.commit()
             logger.debug("Streaming chat complete for %s", chat_id)
 
-            yield json.dumps({
+            data = {
                 'response': response_text,
                 'sources': sources,
                 'message_count': chat.message_count,
                 'source_content': sources[0]['content'] if sources else ""
-            })
+            }
+            self.redis.setex(cache_key, 3600, json.dumps(data))
+            yield json.dumps(data)
 
         return True, generator()
     

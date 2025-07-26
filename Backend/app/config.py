@@ -24,7 +24,11 @@ class Config:
     # Ollama/AI settings
     OLLAMA_BASE_URL = "http://localhost:11434"
     LLM_MODEL = "granite3.3:2b"
-    EMBEDDING_MODEL = "granite-embedding:278m"
+    EMBEDDING_MODEL = "granite-embedding:8m"
+
+    # Redis cache settings
+    REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+    REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
     
     # RAG settings
     CHUNK_SIZE = 1000
