@@ -143,16 +143,18 @@ def get_document_content(document_id):
     """Get full document content for preview"""
     try:
         user = AuthService.get_current_user()
-        document = DocumentService.get_document_status(document_id, user.id)
-        
+        # Fetch the actual Document object so we have access to the stored
+        # file_path. DocumentService.get_document_status() omits this field,
+        # which caused the previous 404 errors when attempting to preview PDFs.
+        document = Document.query.filter_by(id=document_id, user_id=user.id).first()
+
         if not document:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': 'Document not found'
             }), 404
-        
-        # Get the actual file path from the document
-        file_path = document.get('file_path')  # Adjust based on your Document model
+
+        file_path = document.file_path
         
         if not file_path or not os.path.exists(file_path):
             return jsonify({
@@ -167,8 +169,8 @@ def get_document_content(document_id):
             'success': True,
             'data': {
                 'content': text_content,
-                'filename': document.get('filename'),
-                'file_size': document.get('file_size')
+                'filename': document.original_filename,
+                'file_size': document.file_size
             }
         }), 200
             
