@@ -1044,14 +1044,13 @@ class ChatManager {
                     <div class="message-text" id="thinkingContent">
                         Thinking
                     </div>
-                </div>
+                </div
             </div>`;
 
         this.messagesContainer.insertAdjacentHTML('beforeend', html);
         this.scrollToBottom();
     }
 
-    
 
     removeThinkingMessage() {
         const el = document.getElementById('thinkingMessage');
