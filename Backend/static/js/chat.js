@@ -765,7 +765,31 @@ class ChatManager {
                 }
             );
             if(!response.success)throw new Error(response.message);
-            const {response : aiText, sources} = response.data;
+            let {response : aiText, sources} = response.data;
+
+            // Extract <think> sections from the response. These represent the
+            // model's thought process and should be displayed in the thinking
+            // bubble before showing the final answer.
+            const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
+            const thoughtLines = [];
+            let match;
+            while ((match = thinkRegex.exec(aiText)) !== null) {
+                match[1].split(/\n+/).forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed) thoughtLines.push(trimmed);
+                });
+            }
+
+            // Remove <think> sections from the final answer text
+            aiText = aiText.replace(thinkRegex, '').trim();
+
+            // Display extracted thoughts sequentially in the thinking message
+            for (const line of thoughtLines) {
+                this.appendThinkingLine(line);
+                // Small delay so the UI updates progressively
+                await new Promise(r => setTimeout(r, 400));
+            }
+
             this.removeThinkingMessage();
             chat.messages.push({
                 role:'ai',
