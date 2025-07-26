@@ -2,7 +2,8 @@
 Enhanced Chat API Routes with Multi-PDF Support
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, stream_with_context
+import logging
 from app.services.auth_service import AuthService
 from app.services.rag_service import RAGService
 from app.models.chat import Chat, ChatMessage
@@ -10,6 +11,7 @@ from app.models.document import Document
 from app import db
 
 chat_bp = Blueprint('chat', __name__)
+logger = logging.getLogger(__name__)
 
 @chat_bp.route('/list', methods=['GET'])
 def list_chats():
@@ -135,6 +137,7 @@ def send_message(chat_id):
     try:
         user = AuthService.get_current_user()
         data = request.get_json()
+        logger.debug("Message request for chat %s by user %s", chat_id, user.id)
         
         # Validate input
         if not data or 'message' not in data:
@@ -165,27 +168,44 @@ def send_message(chat_id):
                 'success': False,
                 'message': 'Chat not found'
             }), 404
+
+        logger.debug("Processing message for chat %s", chat_id)
         
         # Process message with RAG service
         # For now, use the primary document for processing
         # In a full implementation, you'd enhance RAGService for multi-document support
-        primary_doc_id = document_ids[0]
+        stream = data.get('stream', False)
         rag_service = RAGService()
-        success, message, response_data = rag_service.chat_with_document(chat_id, user_message)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': message,
-                'data': response_data
-            }), 200
+
+        if stream:
+            success, generator = rag_service.chat_with_document_stream(chat_id, user_message)
+            if not success:
+                first = next(generator)
+                return Response(f"data: {first}\n\n", mimetype='text/event-stream')
+
+            def event_stream():
+                for chunk in generator:
+                    yield f"data: {chunk}\n\n"
+
+            logger.debug("Streaming response for chat %s", chat_id)
+            return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
         else:
-            return jsonify({
-                'success': False,
-                'message': message
-            }), 400
-            
+            success, message, response_data = rag_service.chat_with_document(chat_id, user_message)
+            if success:
+                logger.debug("Returning full response for chat %s", chat_id)
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'data': response_data
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': message
+                }), 400
+
     except Exception as e:
+        logger.exception("Message processing failed for chat %s", chat_id)
         return jsonify({
             'success': False,
             'message': f'Message processing failed: {str(e)}'
