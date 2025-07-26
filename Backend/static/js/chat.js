@@ -391,6 +391,37 @@ class ChatManager {
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
+
+    escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    formatMessageText(text) {
+        if (!text) return '';
+        const lines = text.split('\n');
+        let html = '';
+        let inList = false;
+        for (const raw of lines) {
+            let line = raw.trim();
+            if (/^[-*•]\s+/.test(line)) {
+                if (!inList) { html += '<ul>'; inList = true; }
+                line = line.replace(/^[-*•]\s+/, '');
+                line = this.escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                html += `<li>${line}</li>`;
+            } else if (line) {
+                if (inList) { html += '</ul>'; inList = false; }
+                line = this.escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                html += `<p>${line}</p>`;
+            }
+        }
+        if (inList) html += '</ul>';
+        return html;
+    }
     
     updateSelectedDocumentsDisplay() {
         if (!this.selectedDocsContainer) return;
@@ -662,7 +693,7 @@ class ChatManager {
     }
     
     createMessageHTML(message) {
-        
+
         const sourcesHTML = message.sources && message.sources.length > 0 ? `
             <div class="message-sources">
                 <strong>Sources:</strong>
@@ -674,15 +705,17 @@ class ChatManager {
                 `).join('')}
             </div>
         ` : '';
-        
+
+        const formatted = this.formatMessageText(message.content);
+
         return `
             <div class="message ${message.role}">
                 <div class="message-avatar">
                     <i class="material-icons">${message.role === 'user' ? 'person' : 'smart_toy'}</i>
                 </div>
                 <div class="message-content">
-                    <div class="message-text">${message.content}</div>
-                    
+                    <div class="message-text">${formatted}</div>
+
                     ${sourcesHTML}
                 </div>
             </div>
@@ -765,7 +798,31 @@ class ChatManager {
                 }
             );
             if(!response.success)throw new Error(response.message);
-            const {response : aiText, sources} = response.data;
+            let {response : aiText, sources} = response.data;
+
+            // Extract <think> sections from the response. These represent the
+            // model's thought process and should be displayed in the thinking
+            // bubble before showing the final answer.
+            const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
+            const thoughtLines = [];
+            let match;
+            while ((match = thinkRegex.exec(aiText)) !== null) {
+                match[1].split(/\n+/).forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed) thoughtLines.push(trimmed);
+                });
+            }
+
+            // Remove <think> sections from the final answer text
+            aiText = aiText.replace(thinkRegex, '').trim();
+
+            // Display extracted thoughts sequentially in the thinking message
+            for (const line of thoughtLines) {
+                this.appendThinkingLine(line);
+                // Small delay so the UI updates progressively
+                await new Promise(r => setTimeout(r, 400));
+            }
+
             this.removeThinkingMessage();
             chat.messages.push({
                 role:'ai',
@@ -773,6 +830,7 @@ class ChatManager {
                 timestamp: new Date().toISOString(),
                 sources
             });
+            await this.renderAiMessageStreaming(aiText, sources);
             this.displayMessages(chat.messages);
             if(sources?.length){
                 this.highlightSourceInPreview(sources[0].content);
@@ -858,6 +916,7 @@ class ChatManager {
                         sources: jsonData.sources || []
                     };
                     chat.messages.push(aiResponse);
+                    await this.renderAiMessageStreaming(jsonData.response, aiResponse.sources);
                     this.displayMessages(chat.messages);
                     // Highlight relevant source text if provided
                     const highlightText = jsonData.source_content || (aiResponse.sources && aiResponse.sources[0] && aiResponse.sources[0].content);
@@ -1044,7 +1103,7 @@ class ChatManager {
                     <div class="message-text" id="thinkingContent">
                         Thinking
                     </div>
-                </div
+                </div>
             </div>`;
 
         this.messagesContainer.insertAdjacentHTML('beforeend', html);
@@ -1089,6 +1148,42 @@ class ChatManager {
         // Scroll to the bottom of the thinking container to show the latest thought
         // If using message-text, it has overflow-y:auto defined and will scroll
         container.parentElement?.scrollTo({ top: container.parentElement.scrollHeight, behavior: 'smooth' });
+    }
+
+    async renderAiMessageStreaming(text, sources) {
+        if (!this.messagesContainer) return;
+        const id = 'ai_' + Date.now();
+        const sourcesHTML = sources && sources.length > 0 ? `
+            <div class="message-sources">
+                <strong>Sources:</strong>
+                ${sources.map((s, i) => `
+                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${s.content}')">
+                        <i class="material-icons">link</i>
+                        <span>Source ${i + 1}</span>
+                    </div>
+                `).join('')}
+            </div>
+        ` : '';
+
+        const wrapper = `
+            <div class="message ai">
+                <div class="message-avatar"><i class="material-icons">smart_toy</i></div>
+                <div class="message-content">
+                    <div class="message-text" id="${id}"></div>
+                    ${sourcesHTML}
+                </div>
+            </div>`;
+
+        this.messagesContainer.insertAdjacentHTML('beforeend', wrapper);
+        const el = document.getElementById(id);
+        if (!el) return;
+        let idx = 0;
+        while (idx <= text.length) {
+            el.innerHTML = this.formatMessageText(text.slice(0, idx));
+            this.scrollToBottom();
+            await new Promise(r => setTimeout(r, 20));
+            idx++;
+        }
     }
 
     scrollToBottom() {
