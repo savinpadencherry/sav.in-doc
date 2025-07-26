@@ -3,9 +3,10 @@ Flask Application Factory
 Clean architecture with blueprint registration
 """
 
-from flask import Flask, render_template # type: ignore
-from flask_sqlalchemy import SQLAlchemy # type: ignore
-from flask_cors import CORS # type: ignore
+from flask import Flask, render_template  # type: ignore
+from flask_sqlalchemy import SQLAlchemy  # type: ignore
+from flask_cors import CORS  # type: ignore
+import logging
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -20,6 +21,10 @@ def create_app():
     # Load configuration
     from app.config import Config
     app.config.from_object(Config)
+
+    # Configure logging
+    logging.basicConfig(level=logging.DEBUG)
+    app.logger.setLevel(logging.DEBUG)
     
     # Initialize extensions
     db.init_app(app)
