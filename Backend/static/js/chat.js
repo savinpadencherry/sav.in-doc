@@ -11,7 +11,10 @@ class ChatManager {
         this.isTyping = false;
         this.availableDocuments = [];
         this.currentDocumentContent = null;
+        // Buffer for streaming thoughts
         this.thinkingLines = [];
+        // Maximum number of thought lines to display before truncating
+        this.thinkMaxLines = 4;
         
         // DOM Elements
         this.chatList = document.getElementById('chatList');
@@ -710,35 +713,40 @@ class ChatManager {
         chat.messages.push(userMessage);
         chat.selectedDocuments = new Set(this.selectedDocuments);
         this.displayMessages(chat.messages);
+        // Show the dynamic thinking bubble
         this.showThinkingMessage();
-        
-        // Clear input
+
+        // Clear input and update UI state
         this.messageInput.value = '';
         this.updateSendButton();
-        
-        // Show typing animation
+
         this.isTyping = true;
         this.updateChatInputState();
-        
+
         try {
-            // Generate dynamic AI response
-            await this.fetchLiveAIResponse(chat, messageText);
-            
+            // Attempt to stream the AI response line-by-line. If streaming fails,
+            // fall back to the non-streaming implementation.
+            await this.fetchStreamedAIResponse(chat, messageText);
         } catch (error) {
-            console.error('Send message error:', error);
-            const errorMessage = {
-                role: 'ai',
-                content: 'Sorry, I encountered an error processing your request. Please try again.',
-                timestamp: new Date().toISOString(),
-                isError: true
-            };
-            chat.messages.push(errorMessage);
-            this.displayMessages(chat.messages);
+            console.error('Streaming failed, falling back to regular response:', error);
+            try {
+                await this.fetchLiveAIResponse(chat, messageText);
+            } catch (error2) {
+                console.error('Send message error:', error2);
+                const errorMessage = {
+                    role: 'ai',
+                    content: 'Sorry, I encountered an error processing your request. Please try again.',
+                    timestamp: new Date().toISOString(),
+                    isError: true
+                };
+                chat.messages.push(errorMessage);
+                this.displayMessages(chat.messages);
+            }
         } finally {
+            // Collapse and remove the thinking message once the full reply has been processed
             this.removeThinkingMessage();
             this.isTyping = false;
             this.updateChatInputState();
-            
             chat.last_activity = new Date().toISOString();
             this.saveChatHistory();
         }
@@ -779,6 +787,90 @@ class ChatManager {
                 isError: true
             })
             this.displayMessages(chat.messages);
+        }
+    }
+
+    /**
+     * Fetch the AI response using server-sent events (SSE) to stream
+     * intermediate thoughts. The backend is expected to emit lines prefixed
+     * with `data:` according to the SSE spec. Each payload may either be
+     * a JSON object containing the final response or a raw text line
+     * representing the assistant's thought process. When a JSON object
+     * is received the final response is displayed and the method returns.
+     * @param {Object} chat - Current chat session
+     * @param {string} userMessage - The user message to send
+     */
+    async fetchStreamedAIResponse(chat, userMessage) {
+        // Construct the POST request manually. Do not use apiRequest here
+        const response = await fetch(`/chat/${this.currentChatId}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: userMessage,
+                document_ids: Array.from(this.selectedDocuments),
+                stream: true
+            })
+        });
+
+        // If response is not OK or the body is not readable, throw to trigger fallback
+        if (!response.ok || !response.body) {
+            throw new Error(`Bad response status: ${response.status}`);
+        }
+
+        const decoder = new TextDecoder();
+        const reader = response.body.getReader();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            // Split the buffer into lines. SSE messages end with a newline.
+            const lines = buffer.split('\n');
+            // Keep the last partial line for the next iteration
+            buffer = lines.pop();
+
+            for (const raw of lines) {
+                const line = raw.trim();
+                if (!line.startsWith('data:')) continue;
+
+                const payload = line.slice(5).trim();
+                // End of stream indicator
+                if (payload === '[DONE]') {
+                    return;
+                }
+
+                // Attempt to parse the payload as JSON. If it fails, treat it as a thought line.
+                let jsonData = null;
+                try {
+                    jsonData = JSON.parse(payload);
+                } catch (err) {
+                    jsonData = null;
+                }
+
+                if (jsonData && typeof jsonData === 'object' && !Array.isArray(jsonData)) {
+                    // Final AI response with optional sources
+                    const aiResponse = {
+                        role: 'ai',
+                        content: jsonData.response,
+                        timestamp: new Date().toISOString(),
+                        sources: jsonData.sources || []
+                    };
+                    chat.messages.push(aiResponse);
+                    this.displayMessages(chat.messages);
+                    // Highlight relevant source text if provided
+                    const highlightText = jsonData.source_content || (aiResponse.sources && aiResponse.sources[0] && aiResponse.sources[0].content);
+                    if (highlightText) {
+                        this.highlightSourceInPreview(highlightText);
+                    }
+                    // After receiving the final response, we can finish
+                    return;
+                } else if (payload) {
+                    // Treat the payload as a thought and append it
+                    this.appendThinkingLine(payload);
+                }
+            }
         }
     }
     
@@ -933,17 +1025,28 @@ class ChatManager {
     }
 
     showThinkingMessage() {
+        // Display a thinking message bubble for streaming thoughts. The bubble will
+        // show up to thinkMaxLines of text and scroll automatically as new lines
+        // arrive. If a thinking message already exists, do nothing.
         if (!this.messagesContainer || document.getElementById('thinkingMessage')) return;
+
+        // Reset buffer
+        this.thinkingLines = [];
+
+        // Construct the thinking message. We reuse the existing styling for
+        // `.message.thinking` to preserve the starry background and animation.
         const html = `
             <div class="message ai thinking" id="thinkingMessage">
                 <div class="message-avatar">
                     <i class="material-icons">smart_toy</i>
                 </div>
                 <div class="message-content">
-                    <div class="spinner small"></div>
-                    <div class="message-text">Thinking</div>
+                    <div class="message-text" id="thinkingContent">
+                        Thinking
+                    </div>
                 </div>
             </div>`;
+
         this.messagesContainer.insertAdjacentHTML('beforeend', html);
         this.scrollToBottom();
     }
@@ -952,7 +1055,41 @@ class ChatManager {
 
     removeThinkingMessage() {
         const el = document.getElementById('thinkingMessage');
-        if (el) el.remove();
+        if (!el) return;
+        // Remove the thinking message immediately. We do not animate here because
+        // the message-text area handles its own scroll and does not require
+        // height transitions.
+        el.remove();
+        // Clear stored thought lines
+        this.thinkingLines = [];
+    }
+
+    /**
+     * Append a single thought line emitted by the backend and animate the thinking
+     * bubble to reveal up to this.thinkMaxLines lines. Excess lines will be
+     * truncated from the beginning of the buffer.
+     *
+     * @param {string} line - The line of thought to display
+     */
+    appendThinkingLine(line) {
+        if (!line) return;
+        const container = document.getElementById('thinkingContent');
+        if (!container) return;
+
+        // Trim whitespace and push to buffer
+        this.thinkingLines.push(line.trim());
+        if (this.thinkingLines.length > this.thinkMaxLines) {
+            // Keep only the last N lines
+            this.thinkingLines = this.thinkingLines.slice(-this.thinkMaxLines);
+        }
+
+        // Update the displayed text. Use newline characters; CSS will handle the
+        // wrapping within the message-text container.
+        container.textContent = this.thinkingLines.join('\n');
+
+        // Scroll to the bottom of the thinking container to show the latest thought
+        // If using message-text, it has overflow-y:auto defined and will scroll
+        container.parentElement?.scrollTo({ top: container.parentElement.scrollHeight, behavior: 'smooth' });
     }
 
     scrollToBottom() {

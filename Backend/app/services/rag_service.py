@@ -163,7 +163,7 @@ Answer:"""
     
     def _create_context_prompt(self, user_message, filename):
         """Create contextual prompt for better responses"""
-        return f"""You are an AI assistant helping users understand the document '{filename}'. 
+        return f"""You are Sav.in, an AI assistant helping users understand the document '{filename}'. 
         
 Provide accurate, helpful responses based on the document context provided. 
 If the question cannot be answered from the document context, politely say so.

@@ -1036,7 +1036,7 @@ body::after {
 }
 
 .source-highlight::before {
-    content: "📍 AI Source Citation";
+    content: "Ã°Å¸â€œÂ AI Source Citation";
     position: absolute;
     top: -12px;
     left: 16px;
@@ -1198,24 +1198,30 @@ body::after {
     border-bottom-left-radius: var(--radius-lg);
 }
 
-/* ───────────────────────────────────────────────
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    THINKING (assistant-typing) MESSAGE BUBBLE
-   ─────────────────────────────────────────────── */
-.message.thinking .message-content{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:16px 24px;
-  position:relative;
-  overflow:hidden;
-  border:2px solid rgba(255,255,255,0.25);
-  border-radius:var(--radius-xl);
-  box-shadow:var(--shadow-lg);
-  background:linear-gradient(135deg,var(--primary-color),var(--primary-light));
-  color:var(--text-white);
+   Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*
+  Thinking (assistant-typing) message bubble. We structure the content
+  vertically to accommodate a label and a streaming thoughts container.
+*/
+/* Restore horizontal layout for the thinking message bubble. The content
+   aligns its children horizontally, preserving the original aesthetic. */
+.message.thinking .message-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  color: var(--text-white);
 }
 
-/* ⭐ starry layer + drift */
+/* Ã¢Â­Â starry layer + drift */
 .message.thinking .message-content::before{
   content:'';
   position:absolute;
@@ -1236,36 +1242,27 @@ body::after {
   margin:0;
   font-weight:600;
   position:relative;
-  max-height: 80px;
+  /* Limit the height to show up to 4 lines of streamed thoughts. The
+     scroll-behavior ensures new thoughts remain visible as they are added. */
+  max-height: calc(1.7 * 16px * 4);
   overflow-y: auto;
   display: flex;
-  scroll-behavior: smooth;
   flex-direction: column;
-  display: flex;
   justify-content: flex-end;
-  z-index:1;
-  text-shadow:0 1px 3px rgba(0,0,0,0.3);
-  color:var(--text-white);
+  scroll-behavior: smooth;
+  z-index: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  color: var(--text-white);
 }
 
-/* ⬤⬤⬤ animated dots */
+/* Ã¢Â¬Â¤Ã¢Â¬Â¤Ã¢Â¬Â¤ animated dots */
 .message.thinking .message-text::after{
-  content:'';
-  display:inline-block;
-  width:60px;
-  height:12px;
-  margin-left:8px;
-  background-image:
-    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px),
-    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px),
-    radial-gradient(circle,rgba(255,255,255,0.9) 4px,transparent 4px);
-  background-size:12px 12px;
-  background-position:0 0,20px 0,40px 0;
-  background-repeat:no-repeat;
-  animation:wavyDots 1.4s ease-in-out infinite;
+  /* Hide the animated dots when streaming thoughts. The thinking text itself
+     will indicate activity. */
+  display: none;
 }
 
-/* ─── KEYFRAMES ─── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ KEYFRAMES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 @keyframes star-drift{
   0%   { background-position:0 0; }
   100% { background-position:100px 100px; }
@@ -1280,6 +1277,28 @@ body::after {
 
 /* hide any spinner if you still mount it */
 .message.thinking .spinner.small{ display:none; }
+
+/*
+  Dynamic thinking message enhancements
+  -------------------------------
+  These styles support the streaming Ã¢â‚¬Å“thinkingÃ¢â‚¬Â mode introduced in the chat
+  interface. The .thinking-label provides a simple descriptor, while the
+  .thinking-content-container wraps the streamed lines and animates its
+  height via inline styles set in JavaScript. By default it simply hides
+  overflow and inherits its colours from the parent message bubble.
+*/
+.thinking-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: inherit;
+}
+.thinking-content-container {
+  overflow: hidden;
+}
+.thinking-content-container #thinkingContent {
+  white-space: pre-line;
+  line-height: 1.4;
+}
 
 .message-text {
     font-size: 16px;
