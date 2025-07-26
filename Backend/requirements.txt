@@ -16,3 +16,4 @@ numpy
 python-multipart
 Werkzeug
 pydantic
+redis

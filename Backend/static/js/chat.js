@@ -359,14 +359,14 @@ class ChatManager {
                     .join('');
                 
                 return index === 0 ? formattedPage : `
-                    <div class="page-separator">📄 Page ${index}</div>
+                    <div class="page-separator" id="page-${index}">📄 Page ${index}</div>
                     ${formattedPage}
                 `;
             })
             .join('');
     }
-    
-    highlightSourceInPreview(sourceText) {
+
+    highlightSourceInPreview(sourceText, chunkIndex = null) {
         if (!this.pdfPreview || !sourceText) return;
 
         const content = this.pdfPreview.innerHTML;
@@ -378,12 +378,17 @@ class ChatManager {
         const highlightedContent = this.pdfPreview.innerHTML.replace(regex, '<span class="source-highlight">$1</span>');
 
         this.pdfPreview.innerHTML = highlightedContent;
-        
+
         // Scroll to first highlighted section
         setTimeout(() => {
+            let target = null;
+            if (chunkIndex !== null) {
+                target = this.pdfPreview.querySelector(`#page-${chunkIndex}`);
+            }
             const highlighted = this.pdfPreview.querySelector('.source-highlight');
-            if (highlighted) {
-                highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target = target || highlighted;
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }, 100);
     }
@@ -698,7 +703,7 @@ class ChatManager {
             <div class="message-sources">
                 <strong>Sources:</strong>
                 ${message.sources.map((source, index) => `
-                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${source.content}')">
+                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${source.content}', ${source.chunk_index})">
                         <i class="material-icons">link</i>
                         <span>Source ${index + 1}</span>
                     </div>
@@ -833,7 +838,7 @@ class ChatManager {
             await this.renderAiMessageStreaming(aiText, sources);
             this.displayMessages(chat.messages);
             if(sources?.length){
-                this.highlightSourceInPreview(sources[0].content);
+                this.highlightSourceInPreview(sources[0].content, sources[0].chunk_index);
             }
         } catch (error) {
             console.error('Error fetching AI response:', error);
@@ -921,7 +926,8 @@ class ChatManager {
                     // Highlight relevant source text if provided
                     const highlightText = jsonData.source_content || (aiResponse.sources && aiResponse.sources[0] && aiResponse.sources[0].content);
                     if (highlightText) {
-                        this.highlightSourceInPreview(highlightText);
+                        const index = aiResponse.sources && aiResponse.sources[0] ? aiResponse.sources[0].chunk_index : null;
+                        this.highlightSourceInPreview(highlightText, index);
                     }
                     // After receiving the final response, we can finish
                     return;
@@ -986,7 +992,7 @@ class ChatManager {
         // Highlight sources in preview if available
         if (aiResponse.sources && aiResponse.sources.length > 0 && this.currentDocumentContent) {
             setTimeout(() => {
-                this.highlightSourceInPreview(aiResponse.sources[0].content);
+                this.highlightSourceInPreview(aiResponse.sources[0].content, aiResponse.sources[0].chunk_index);
             }, 500);
         }
     }
@@ -1157,7 +1163,7 @@ class ChatManager {
             <div class="message-sources">
                 <strong>Sources:</strong>
                 ${sources.map((s, i) => `
-                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${s.content}')">
+                    <div class="source-item" onclick="chatManager.highlightSourceInPreview('${s.content}', ${s.chunk_index})">
                         <i class="material-icons">link</i>
                         <span>Source ${i + 1}</span>
                     </div>
