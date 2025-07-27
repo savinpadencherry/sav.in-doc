@@ -63,6 +63,28 @@ class RAGService:
             length_function=len,
             separators=["\n\n", "\n", " ", ""]
         )
+
+        # Simple in-memory cache for loaded vector stores to avoid
+        # repeatedly loading from disk on each request. The cache key
+        # is the vector store directory path.
+        self.vector_cache = {}
+
+    def _get_vector_store(self, store_path: str):
+        """Return a loaded FAISS vector store, using an in-memory cache."""
+        if store_path in self.vector_cache:
+            return self.vector_cache[store_path]
+
+        if not os.path.exists(store_path):
+            raise FileNotFoundError(f"Vector store not found: {store_path}")
+
+        logger.debug("Loading vector store from %s", store_path)
+        vector_store = FAISS.load_local(
+            store_path,
+            self.embeddings,
+            allow_dangerous_deserialization=True,
+        )
+        self.vector_cache[store_path] = vector_store
+        return vector_store
     
     def process_document(self, text_content, document_id, filename):
         """Process document for RAG"""
@@ -94,12 +116,14 @@ class RAGService:
             # Create vector store
             logger.debug("Creating vector store")
             vector_store = FAISS.from_documents(documents, self.embeddings)
-            
+
             # Save vector store
             vector_store_id = f"doc_{document_id}"
             store_path = os.path.join(current_app.config['VECTOR_STORE_PATH'], vector_store_id)
             os.makedirs(store_path, exist_ok=True)
             vector_store.save_local(store_path)
+            # Cache the vector store for immediate use
+            self.vector_cache[store_path] = vector_store
             logger.debug("Vector store saved to %s", store_path)
             
             logger.debug("Document %s processed successfully", document_id)
@@ -133,16 +157,11 @@ class RAGService:
                 chat.document.vector_store_id
             )
             
-            logger.debug("Loading vector store from %s", store_path)
-            if not os.path.exists(store_path):
+            try:
+                vector_store = self._get_vector_store(store_path)
+            except FileNotFoundError:
                 logger.error("Vector store not found for chat %s", chat_id)
                 return False, "Document vector store not found", None
-            
-            vector_store = FAISS.load_local(
-                store_path,
-                self.embeddings,
-                allow_dangerous_deserialization=True
-            )
             
             # Get conversation history
             history = []
@@ -239,18 +258,13 @@ Answer:"""
             current_app.config['VECTOR_STORE_PATH'],
             chat.document.vector_store_id
         )
-        logger.debug("Loading vector store from %s", store_path)
-        if not os.path.exists(store_path):
+        try:
+            vector_store = self._get_vector_store(store_path)
+        except FileNotFoundError:
             logger.error("Vector store not found for chat %s", chat_id)
             def gen_error():
                 yield json.dumps({'error': 'Document vector store not found'})
             return False, gen_error()
-
-        vector_store = FAISS.load_local(
-            store_path,
-            self.embeddings,
-            allow_dangerous_deserialization=True
-        )
 
         relevant_docs = vector_store.similarity_search(
             user_message,
@@ -328,6 +342,8 @@ User question: {user_message}"""
             store_path = os.path.join(current_app.config['VECTOR_STORE_PATH'], vector_store_id)
             if os.path.exists(store_path):
                 shutil.rmtree(store_path)
+            # Remove from in-memory cache if present
+            self.vector_cache.pop(store_path, None)
             return True
         except Exception as e:
             print(f"Error deleting vectors: {e}")
