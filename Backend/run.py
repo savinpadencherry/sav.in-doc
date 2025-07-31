@@ -4,6 +4,7 @@ Clean architecture with no authentication
 """
 
 import os
+from sqlalchemy import text
 from app import create_app, db
 from app.models.user import User
 
@@ -18,9 +19,10 @@ def create_tables(app):
         # missing columns individually.  This is a simple schema-migration
         # helper to avoid OperationalError when models change in development.
         try:
-            # Introspect existing columns using SQLite PRAGMA
-            result = db.engine.execute("PRAGMA table_info(users)")
-            existing_cols = {row['name'] for row in result}
+            # Introspect existing columns using SQLAlchemy 2.x API
+            with db.engine.connect() as conn:
+                result = conn.execute(text("PRAGMA table_info(users)"))
+                existing_cols = {row['name'] for row in result.mappings()}
             # Define the expected columns and their SQL types.  Use types
             # compatible with SQLite.  If you add more columns to the User
             # model, update this dictionary accordingly.
@@ -37,7 +39,8 @@ def create_tables(app):
             }
             for col, coltype in expected_cols.items():
                 if col not in existing_cols:
-                    db.engine.execute(f"ALTER TABLE users ADD COLUMN {col} {coltype}")
+                    with db.engine.connect() as conn:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {coltype}"))
         except Exception as schema_exc:
             # Log a warning but continue.  In cases where the schema
             # modification fails (e.g. due to unsupported ALTER), the developer
