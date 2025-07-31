@@ -699,6 +699,17 @@ class ChatManager {
     
     createMessageHTML(message) {
 
+        // If the message contains a visualization, prepare an HTML block for it.  The
+        // visualization is expected to include an `image` field with a data URI.
+        let visualizationHTML = '';
+        if (message.visualization && message.visualization.image) {
+            visualizationHTML = `
+                <div class="message-visualization" style="margin-top: 16px;">
+                    <img src="${message.visualization.image}" alt="Graphical representation" style="max-width:100%; border-radius: 8px; box-shadow: var(--shadow-sm);" />
+                </div>
+            `;
+        }
+
         const sourcesHTML = message.sources && message.sources.length > 0 ? `
             <div class="message-sources">
                 <strong>Sources:</strong>
@@ -712,7 +723,6 @@ class ChatManager {
         ` : '';
 
         const formatted = this.formatMessageText(message.content);
-
         return `
             <div class="message ${message.role}">
                 <div class="message-avatar">
@@ -720,7 +730,7 @@ class ChatManager {
                 </div>
                 <div class="message-content">
                     <div class="message-text">${formatted}</div>
-
+                    ${visualizationHTML}
                     ${sourcesHTML}
                 </div>
             </div>
@@ -803,7 +813,7 @@ class ChatManager {
                 }
             );
             if(!response.success)throw new Error(response.message);
-            let {response : aiText, sources} = response.data;
+            let {response : aiText, sources, visualization} = response.data;
 
             // Extract <think> sections from the response. These represent the
             // model's thought process and should be displayed in the thinking
@@ -829,13 +839,16 @@ class ChatManager {
             }
 
             this.removeThinkingMessage();
+            // Append AI message to history including visualization so it can be
+            // properly re-rendered later from local storage.
             chat.messages.push({
                 role:'ai',
                 content: aiText,
                 timestamp: new Date().toISOString(),
-                sources
+                sources,
+                visualization
             });
-            await this.renderAiMessageStreaming(aiText, sources);
+            await this.renderAiMessageStreaming(aiText, sources, visualization);
             this.displayMessages(chat.messages);
             if(sources?.length){
                 this.highlightSourceInPreview(sources[0].content, sources[0].chunk_index);
@@ -918,10 +931,11 @@ class ChatManager {
                         role: 'ai',
                         content: jsonData.response,
                         timestamp: new Date().toISOString(),
-                        sources: jsonData.sources || []
+                        sources: jsonData.sources || [],
+                        visualization: jsonData.visualization || null
                     };
                     chat.messages.push(aiResponse);
-                    await this.renderAiMessageStreaming(jsonData.response, aiResponse.sources);
+                    await this.renderAiMessageStreaming(jsonData.response, aiResponse.sources, aiResponse.visualization);
                     this.displayMessages(chat.messages);
                     // Highlight relevant source text if provided
                     const highlightText = jsonData.source_content || (aiResponse.sources && aiResponse.sources[0] && aiResponse.sources[0].content);
@@ -1156,7 +1170,7 @@ class ChatManager {
         container.parentElement?.scrollTo({ top: container.parentElement.scrollHeight, behavior: 'smooth' });
     }
 
-    async renderAiMessageStreaming(text, sources) {
+    async renderAiMessageStreaming(text, sources, visualization = null) {
         if (!this.messagesContainer) return;
         const id = 'ai_' + Date.now();
         const sourcesHTML = sources && sources.length > 0 ? `
@@ -1171,11 +1185,21 @@ class ChatManager {
             </div>
         ` : '';
 
+        // If a visualization is present, prepare its HTML.  This mirrors the
+        // logic used in createMessageHTML but is applied after the streaming
+        // text completes.
+        const vizHTML = visualization && visualization.image ? `
+            <div class="message-visualization" style="margin-top: 16px;">
+                <img src="${visualization.image}" alt="Graphical representation" style="max-width:100%; border-radius: 8px; box-shadow: var(--shadow-sm);" />
+            </div>
+        ` : '';
+
         const wrapper = `
             <div class="message ai">
                 <div class="message-avatar"><i class="material-icons">smart_toy</i></div>
                 <div class="message-content">
                     <div class="message-text" id="${id}"></div>
+                    ${vizHTML}
                     ${sourcesHTML}
                 </div>
             </div>`;

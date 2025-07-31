@@ -17,3 +17,6 @@ python-multipart
 Werkzeug
 pydantic
 redis
+matplotlib
+scikit-learn
+scipy

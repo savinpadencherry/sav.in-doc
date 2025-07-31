@@ -8,10 +8,42 @@ from app import create_app, db
 from app.models.user import User
 
 def create_tables(app):
-    """Create database tables and default user"""
+    """Create or update database tables and insert a default user if needed."""
     with app.app_context():
+        # Create all tables if they do not exist
         db.create_all()
-        
+
+        # Ensure the users table has all expected columns.  SQLite does not
+        # support ALTER TABLE for multiple columns at once, so we add any
+        # missing columns individually.  This is a simple schema-migration
+        # helper to avoid OperationalError when models change in development.
+        try:
+            # Introspect existing columns using SQLite PRAGMA
+            result = db.engine.execute("PRAGMA table_info(users)")
+            existing_cols = {row['name'] for row in result}
+            # Define the expected columns and their SQL types.  Use types
+            # compatible with SQLite.  If you add more columns to the User
+            # model, update this dictionary accordingly.
+            expected_cols = {
+                'first_name': 'VARCHAR(50)',
+                'last_name': 'VARCHAR(50)',
+                'profile_picture': 'VARCHAR(255)',
+                'is_active': 'BOOLEAN',
+                'is_verified': 'BOOLEAN',
+                'is_admin': 'BOOLEAN',
+                'created_at': 'DATETIME',
+                'updated_at': 'DATETIME',
+                'last_login': 'DATETIME'
+            }
+            for col, coltype in expected_cols.items():
+                if col not in existing_cols:
+                    db.engine.execute(f"ALTER TABLE users ADD COLUMN {col} {coltype}")
+        except Exception as schema_exc:
+            # Log a warning but continue.  In cases where the schema
+            # modification fails (e.g. due to unsupported ALTER), the developer
+            # may need to manually migrate or drop the DB.
+            print(f"⚠️  Schema update warning: {schema_exc}")
+
         # Create default user for bypass authentication
         default_user = User.query.filter_by(username='default').first()
         if not default_user:
