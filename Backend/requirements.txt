@@ -20,3 +20,6 @@ redis
 matplotlib
 scikit-learn
 scipy
+pandas
+pdfplumber
+squarify
