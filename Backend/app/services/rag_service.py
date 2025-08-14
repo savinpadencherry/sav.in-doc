@@ -1,6 +1,6 @@
 """
 RAG Service
-Advanced document processing and chat with Granite models
+Advanced document processing and chat with Ollama models
 """
 
 import os
@@ -15,9 +15,8 @@ try:
     import redis  # type: ignore
 except ImportError:
     redis = None
-from langchain_community.embeddings import OllamaEmbeddings # type: ignore
-from langchain_community.vectorstores import FAISS # type: ignore
-from langchain_community.llms import Ollama # type: ignore
+from langchain_ollama import OllamaLLM, OllamaEmbeddings  # type: ignore
+from langchain_community.vectorstores import FAISS  # type: ignore
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 import hashlib
 import io
@@ -100,15 +99,15 @@ class RAGService:
 
         # Initialize the LLM and embeddings.  The temperature is fixed at 0.2
         # here for consistent responses but can be overridden in future updates.
-        self.llm = Ollama(
+        self.llm = OllamaLLM(
             model=current_app.config['LLM_MODEL'],
             base_url=current_app.config['OLLAMA_BASE_URL'],
-            temperature=0.2
+            temperature=0.2,
         )
 
         self.embeddings = OllamaEmbeddings(
             model=current_app.config['EMBEDDING_MODEL'],
-            base_url=current_app.config['OLLAMA_BASE_URL']
+            base_url=current_app.config['OLLAMA_BASE_URL'],
         )
 
         # Text splitter configuration.  Splitting is controlled by the chunk
@@ -275,7 +274,7 @@ class RAGService:
             )
 
             logger.debug("Sending prompt to LLM (length=%s)", len(full_prompt))
-            response_text = self.llm(full_prompt)
+            response_text = self.llm.invoke(full_prompt)
             logger.debug("LLM response received, length=%s", len(response_text))
 
             # Prepare sources metadata for citation
