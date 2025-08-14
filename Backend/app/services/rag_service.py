@@ -1,6 +1,6 @@
 """
 RAG Service
-Advanced document processing and chat with Granite models
+Advanced document processing and chat with Ollama models
 """
 
 import os
@@ -10,37 +10,62 @@ from datetime import datetime
 from flask import current_app  # type: ignore
 import logging
 # Attempt to import Redis.  If the library is unavailable this will set
-# `redis` to None.  Later logic in __init__ falls back to DummyRedis.
+# `redis` to None.  Later logic in __init__ falls back to an in-memory TTL cache.
 try:
     import redis  # type: ignore
 except ImportError:
     redis = None
-from langchain_community.embeddings import OllamaEmbeddings # type: ignore
-from langchain_community.vectorstores import FAISS # type: ignore
-from langchain_community.llms import Ollama # type: ignore
+from langchain_ollama import OllamaLLM, OllamaEmbeddings  # type: ignore
+from langchain_community.vectorstores import FAISS  # type: ignore
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 import hashlib
 import io
 import base64
 import re
-from collections import Counter
-from langchain.chains import ConversationalRetrievalChain # type: ignore
-from langchain.memory import ConversationBufferMemory # type: ignore
+from collections import OrderedDict
+import time
+import pdfplumber  # type: ignore
+import pandas as pd  # type: ignore
+import squarify  # type: ignore
 from langchain.schema import Document # type: ignore
 from app import db
 from app.models.chat import Chat
 
 logger = logging.getLogger(__name__)
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 
-class DummyRedis:
-    """Fallback in-memory cache when Redis is unavailable."""
+class InMemoryTTLCache:
+    """Simple in-process TTL cache used when Redis is unavailable.
 
-    def get(self, *args, **kwargs):
-        return None
+    This cache stores values in an :class:`OrderedDict` to provide basic LRU
+    eviction behaviour.  Each key maps to a tuple of ``(expiry_timestamp,
+    value)``.  When the cache exceeds ``maxsize`` the oldest items are
+    discarded.
+    """
 
-    def setex(self, *args, **kwargs):
-        return None
+    def __init__(self, maxsize: int = 128):
+        self.maxsize = maxsize
+        self.store: OrderedDict[str, tuple[float, str]] = OrderedDict()
+
+    def get(self, key: str):  # type: ignore[override]
+        item = self.store.get(key)
+        if not item:
+            return None
+        expiry, value = item
+        if expiry < time.time():
+            self.store.pop(key, None)
+            return None
+        # Move to end to denote recent use
+        self.store.move_to_end(key)
+        return value
+
+    def setex(self, key: str, ttl: int, value: str):  # type: ignore[override]
+        expiry = time.time() + ttl
+        self.store[key] = (expiry, value)
+        self.store.move_to_end(key)
+        if len(self.store) > self.maxsize:
+            self.store.popitem(last=False)
 
 class RAGService:
     """Service encapsulating retrieval augmented generation with caching and visualizations."""
@@ -64,28 +89,25 @@ class RAGService:
                     port=current_app.config.get('REDIS_PORT', 6379),
                     decode_responses=True,
                 )
-                # Test the connection.  This will throw an exception if Redis is
-                # unreachable.
                 self.redis.ping()
             except Exception as exc:  # pragma: no cover - network dependent
-                logger.warning("Redis unavailable, falling back to DummyRedis: %s", exc)
-                self.redis = DummyRedis()
+                logger.warning("Redis unavailable, using in-memory cache: %s", exc)
+                self.redis = InMemoryTTLCache()
         else:
-            # If the redis library itself is missing, we cannot connect to Redis.
-            logger.warning("Redis library not installed; using DummyRedis")
-            self.redis = DummyRedis()
+            logger.warning("Redis library not installed; using in-memory cache")
+            self.redis = InMemoryTTLCache()
 
         # Initialize the LLM and embeddings.  The temperature is fixed at 0.2
         # here for consistent responses but can be overridden in future updates.
-        self.llm = Ollama(
+        self.llm = OllamaLLM(
             model=current_app.config['LLM_MODEL'],
             base_url=current_app.config['OLLAMA_BASE_URL'],
-            temperature=0.2
+            temperature=0.2,
         )
 
         self.embeddings = OllamaEmbeddings(
             model=current_app.config['EMBEDDING_MODEL'],
-            base_url=current_app.config['OLLAMA_BASE_URL']
+            base_url=current_app.config['OLLAMA_BASE_URL'],
         )
 
         # Text splitter configuration.  Splitting is controlled by the chunk
@@ -167,7 +189,7 @@ class RAGService:
             logger.exception("Document processing failed")
             return False, f"Processing failed: {str(e)}", None
     
-    def chat_with_document(self, chat_id: int, user_message: str):
+    def chat_with_document(self, chat_id: int, user_message: str, visualize: bool = False):
         """Generate a response for a given chat and user message.
 
         This method performs retrieval augmented generation by searching the
@@ -192,7 +214,7 @@ class RAGService:
             # randomized between processes, which makes it unsuitable for cache
             # keys.  Lowercase and strip the message to normalise input.
             msg_hash = hashlib.md5(user_message.strip().lower().encode('utf-8')).hexdigest()
-            cache_key = f"chat:{chat_id}:{msg_hash}"
+            cache_key = f"chat:{chat_id}:{msg_hash}:viz{int(visualize)}"
             cached = self.redis.get(cache_key)
             if cached:
                 logger.debug("Cache hit for %s", cache_key)
@@ -232,13 +254,13 @@ class RAGService:
             context_prompt = self._create_context_prompt(user_message, chat.document.original_filename)
 
             # Perform similarity search for relevant document chunks
-            retrieval_k = current_app.config.get('RETRIEVAL_K', 4)
+            retrieval_k = current_app.config.get('RETRIEVAL_K', 3)
             logger.debug("Running similarity search (k=%s)", retrieval_k)
             relevant_docs = vector_store.similarity_search(user_message, k=retrieval_k)
             logger.debug("Found %s relevant docs", len(relevant_docs))
 
-            # Assemble document context
-            context = "\n\n".join([doc.page_content for doc in relevant_docs])
+            # Assemble compact document context
+            context = "\n\n".join([self._compact_text(doc.page_content) for doc in relevant_docs])
 
             # Compose the full prompt for the language model
             full_prompt = (
@@ -252,7 +274,7 @@ class RAGService:
             )
 
             logger.debug("Sending prompt to LLM (length=%s)", len(full_prompt))
-            response_text = self.llm(full_prompt)
+            response_text = self.llm.invoke(full_prompt)
             logger.debug("LLM response received, length=%s", len(response_text))
 
             # Prepare sources metadata for citation
@@ -270,14 +292,14 @@ class RAGService:
             db.session.commit()
             logger.debug("Messages saved to chat %s", chat_id)
 
-            # Generate a simple visualization from the relevant context
             visualization = None
-            try:
-                if relevant_docs:
-                    visualization = self._generate_visualization(relevant_docs)
-            except Exception as viz_exc:
-                logger.warning("Failed to generate visualization: %s", viz_exc)
-                visualization = None
+            if visualize:
+                try:
+                    if relevant_docs:
+                        visualization = self._generate_table_visualization(chat.document.file_path)
+                except Exception as viz_exc:
+                    logger.warning("Failed to generate visualization: %s", viz_exc)
+                    visualization = None
 
             result = {
                 'response': response_text,
@@ -298,7 +320,7 @@ class RAGService:
             logger.exception("Chat failed for chat_id=%s", chat_id)
             return False, f"Chat failed: {str(e)}", None
 
-    def chat_with_document_stream(self, chat_id: int, user_message: str):
+    def chat_with_document_stream(self, chat_id: int, user_message: str, visualize: bool = False):
         """Stream chat response token by token.
 
         This streaming variant of chat_with_document returns an SSE-friendly
@@ -320,15 +342,12 @@ class RAGService:
         """
         logger.debug("Streaming chat for chat_id=%s", chat_id)
         msg_hash = hashlib.md5(user_message.strip().lower().encode('utf-8')).hexdigest()
-        cache_key = f"chat:{chat_id}:{msg_hash}"
+        cache_key = f"chat:{chat_id}:{msg_hash}:viz{int(visualize)}"
         cached = self.redis.get(cache_key)
         if cached:
             data = json.loads(cached)
             def gen_cached():
-                # Yield each character of the cached response to mimic streaming
-                for ch in data['response']:
-                    yield ch
-                # Finally emit the JSON payload
+                yield data['response']
                 yield json.dumps(data)
             return True, gen_cached()
 
@@ -360,12 +379,12 @@ class RAGService:
             return False, gen_error()
 
         # Retrieve relevant documents
-        retrieval_k = current_app.config.get('RETRIEVAL_K', 4)
+        retrieval_k = current_app.config.get('RETRIEVAL_K', 3)
         relevant_docs = vector_store.similarity_search(user_message, k=retrieval_k)
         logger.debug("Found %s relevant docs", len(relevant_docs))
 
         # Compose context for the prompt
-        context = "\n\n".join([doc.page_content for doc in relevant_docs])
+        context = "\n\n".join([self._compact_text(doc.page_content) for doc in relevant_docs])
         history: list[str] = []
         for msg in chat.get_recent_messages(10):
             if msg.role == 'user':
@@ -409,12 +428,13 @@ class RAGService:
 
                 # Generate visualization
                 visualization = None
-                try:
-                    if relevant_docs:
-                        visualization = self._generate_visualization(relevant_docs)
-                except Exception as viz_exc:
-                    logger.warning("Failed to generate visualization: %s", viz_exc)
-                    visualization = None
+                if visualize:
+                    try:
+                        if relevant_docs:
+                            visualization = self._generate_table_visualization(chat.document.file_path)
+                    except Exception as viz_exc:
+                        logger.warning("Failed to generate visualization: %s", viz_exc)
+                        visualization = None
 
                 data = {
                     'response': response_text,
@@ -461,73 +481,111 @@ Be conversational and helpful while staying factual.  When referencing informati
 
 User question: {user_message}"""
 
-    def _generate_visualization(self, docs):
-        """Create a simple bar chart visualization from a list of relevant documents.
+    def _compact_text(self, text: str, max_sentences: int = 3) -> str:
+        """Return only the first few sentences of a text chunk for prompt compaction."""
+        sentences = re.split(r"(?<=[.!?]) +", text.strip())
+        return " ".join(sentences[:max_sentences])
 
-        This helper extracts word frequencies from the provided document chunks,
-        filters out common stopwords and very short tokens, and then produces a
-        horizontal bar chart of the top terms.  The resulting chart is
-        encoded as a base64 PNG for ease of transport to the frontend.
+    def _extract_table(self, file_path: str):
+        """Return the first table in a PDF that meets basic quality criteria."""
+        try:
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    tables = page.extract_tables()
+                    for table in tables:
+                        if self._is_valid_table(table):
+                            return table
+        except Exception as exc:  # pragma: no cover - depends on PDF
+            logger.warning("Table extraction failed: %s", exc)
+        return None
 
-        Args:
-            docs: A list of `Document` objects returned from the vector store.
+    def _is_valid_table(self, table):
+        if not table or len(table) < 5:
+            return False
+        num_cols = len(table[0])
+        if num_cols < 2:
+            return False
+        # Require at least one numeric column
+        for col_idx in range(num_cols):
+            numeric_count = 0
+            for row in table[1:]:
+                cell = row[col_idx]
+                if cell is None:
+                    continue
+                cell_str = str(cell).replace(',', '').strip()
+                if re.fullmatch(r'-?\d+(\.\d+)?', cell_str):
+                    numeric_count += 1
+            if numeric_count >= max(1, (len(table) - 1) // 2):
+                return True
+        return False
 
-        Returns:
-            A dict containing the chart type and a data URI for the image.
-        """
-        # Combine all text from the relevant document chunks
-        combined_text = " ".join(doc.page_content for doc in docs)
-
-        # Lowercase and remove non-alphabetic characters
-        cleaned = re.sub(r"[^a-zA-Z\s]", " ", combined_text.lower())
-        tokens = cleaned.split()
-
-        # Define a basic set of English stopwords
-        stopwords = {
-            'the','and','to','of','in','for','on','with','as','by','is','at',
-            'that','this','it','from','be','or','an','are','a','we','can',
-            'if','not','all','such','which','about','has','have','had','also',
-            'their','our','but','may','more','other','one','two','three','four',
-            'these','its','into','than','however','no','yes','do','does','did',
-            'there','been','was','were','when','what','who','how','why'
-        }
-
-        # Count word frequencies excluding stopwords and short tokens
-        freq = Counter()
-        for tok in tokens:
-            if tok and len(tok) > 2 and tok not in stopwords:
-                freq[tok] += 1
-
-        # Get the top N frequent words
-        top_n = 10
-        most_common = freq.most_common(top_n)
-        if not most_common:
+    def _generate_table_visualization(self, file_path: str):
+        """Generate a simple chart from the first detected table in a PDF."""
+        table = self._extract_table(file_path)
+        if not table:
             return None
 
-        labels, values = zip(*most_common)
+        df = pd.DataFrame(table[1:], columns=table[0])
 
-        # Create horizontal bar chart
-        import matplotlib # type: ignore
-        matplotlib.use('Agg')  # Use a non-interactive backend
-        import matplotlib.pyplot as plt # type: ignore
+        numeric_cols = []
+        date_cols = []
+        for col in df.columns:
+            series = df[col].astype(str).str.replace(',', '')
+            numeric_series = pd.to_numeric(series, errors='coerce')
+            if numeric_series.notna().sum() >= len(df) // 2:
+                df[col] = numeric_series
+                numeric_cols.append(col)
+            else:
+                datetime_series = pd.to_datetime(series, errors='coerce')
+                if datetime_series.notna().sum() >= len(df) // 2:
+                    df[col] = datetime_series
+                    date_cols.append(col)
+
+        if not numeric_cols:
+            return None
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
         fig, ax = plt.subplots(figsize=(6, 4))
-        y_pos = list(range(len(labels)))
-        ax.barh(y_pos, values, color='#1976d2')
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels(labels)
-        ax.invert_yaxis()  # Highest frequency on top
-        ax.set_xlabel('Frequency')
-        ax.set_title('Top Terms in Context')
-        plt.tight_layout()
+        chart_type = 'bar'
 
-        # Save to buffer and encode as base64
+        if date_cols and numeric_cols:
+            ax.plot(df[date_cols[0]], df[numeric_cols[0]])
+            ax.set_xlabel(date_cols[0])
+            ax.set_ylabel(numeric_cols[0])
+            chart_type = 'line'
+        elif len(numeric_cols) >= 2:
+            ax.scatter(df[numeric_cols[0]], df[numeric_cols[1]])
+            ax.set_xlabel(numeric_cols[0])
+            ax.set_ylabel(numeric_cols[1])
+            chart_type = 'scatter'
+        else:
+            # Use first non-numeric column as category if available
+            cat_cols = [c for c in df.columns if c not in numeric_cols + date_cols]
+            if not cat_cols:
+                return None
+            cat_col = cat_cols[0]
+            values = df[numeric_cols[0]]
+            labels = df[cat_col].astype(str)
+            if labels.nunique() > 10:
+                chart_type = 'treemap'
+                squarify.plot(sizes=values, label=labels, ax=ax, color='#1976d2')
+                ax.axis('off')
+            else:
+                ax.bar(labels, values)
+                ax.set_xlabel(cat_col)
+                ax.set_ylabel(numeric_cols[0])
+                chart_type = 'bar'
+                plt.xticks(rotation=45, ha='right')
+
+        plt.tight_layout()
         buffer = io.BytesIO()
         fig.savefig(buffer, format='png')
         plt.close(fig)
         buffer.seek(0)
         encoded = base64.b64encode(buffer.read()).decode('utf-8')
-        data_uri = f"data:image/png;base64,{encoded}"
-        return {'type': 'bar', 'image': data_uri}
+        return {'type': chart_type, 'image': f"data:image/png;base64,{encoded}"}
     
     def delete_document_vectors(self, vector_store_id):
         """Delete vector store for document"""

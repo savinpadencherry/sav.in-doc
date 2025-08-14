@@ -5,6 +5,7 @@ Flask-CORS
 Flask-Migrate
 langchain
 langchain-community
+langchain-ollama
 PyPDF2
 python-dotenv
 bcrypt
@@ -20,3 +21,6 @@ redis
 matplotlib
 scikit-learn
 scipy
+pandas
+pdfplumber
+squarify

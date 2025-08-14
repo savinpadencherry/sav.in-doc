@@ -142,7 +142,7 @@ def main():
     print(f"🔌 API Base: http://localhost:5002/api")
     print("=" * 60)
     print("⚠️  Authentication bypassed - Development mode")
-    print(f"🤖 Models: qwen3:0.6b + {app.config['EMBEDDING_MODEL']}")
+    print(f"🤖 Models: {app.config['LLM_MODEL']} + {app.config['EMBEDDING_MODEL']}")
     print("=" * 60)
     
     # Force port 5002 to avoid macOS AirPlay conflicts

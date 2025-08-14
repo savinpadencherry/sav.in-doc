@@ -27,8 +27,8 @@ class Config:
     
     # AI Model Configuration
     OLLAMA_BASE_URL = "http://localhost:11434"
-    LLM_MODEL = "granite3.3:2b"  # Your specified model
-    EMBEDDING_MODEL = "granite-embedding:30m"  # Your specified embedding model
+    LLM_MODEL = "qwen3:0.6b"  # Lightweight Qwen model
+    EMBEDDING_MODEL = "all-minilm:33m"  # Small embedding model
     
     # Vector Store Configuration (FAISS)
     VECTOR_STORE_PATH = "vector_store"
@@ -36,7 +36,7 @@ class Config:
     # Retrieval configuration
     # Number of relevant document chunks to retrieve from the vector store for each query.  
     # A lower value reduces latency but may miss some context; adjust based on your needs.
-    RETRIEVAL_K = int(os.environ.get('RETRIEVAL_K', 4))
+    RETRIEVAL_K = int(os.environ.get('RETRIEVAL_K', 3))
 
     # Redis configuration for caching
     REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
@@ -45,8 +45,8 @@ class Config:
     # Chat Configuration
     CHAT_STORAGE_PATH = "chats"
     MAX_CHAT_HISTORY = 50
-    CHUNK_SIZE = 1000
-    CHUNK_OVERLAP = 200
+    CHUNK_SIZE = 800
+    CHUNK_OVERLAP = 120
     
     # Memory Configuration
     MEMORY_TYPE = "buffer"  # Options: buffer, summary, hybrid
