@@ -175,10 +175,11 @@ def send_message(chat_id):
         # For now, use the primary document for processing
         # In a full implementation, you'd enhance RAGService for multi-document support
         stream = data.get('stream', False)
+        visualize = data.get('visualize', False)
         rag_service = RAGService()
 
         if stream:
-            success, generator = rag_service.chat_with_document_stream(chat_id, user_message)
+            success, generator = rag_service.chat_with_document_stream(chat_id, user_message, visualize=visualize)
             if not success:
                 first = next(generator)
                 return Response(f"data: {first}\n\n", mimetype='text/event-stream')
@@ -190,7 +191,7 @@ def send_message(chat_id):
             logger.debug("Streaming response for chat %s", chat_id)
             return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
         else:
-            success, message, response_data = rag_service.chat_with_document(chat_id, user_message)
+            success, message, response_data = rag_service.chat_with_document(chat_id, user_message, visualize=visualize)
             if success:
                 logger.debug("Returning full response for chat %s", chat_id)
                 return jsonify({
