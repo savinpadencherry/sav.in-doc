@@ -23,7 +23,7 @@ CHATS_DIR = "./chats"
 os.makedirs(CHATS_DIR, exist_ok=True)
 
 LLM_MODEL = "qwen3:0.6b"
-EMBED_MODEL = "all-minilm:33m"
+EMBED_MODEL = "granite-embedding:30m"
 
 llm = OllamaLLM(model=LLM_MODEL, temperature=0.5)
 embeddings = OllamaEmbeddings(model=EMBED_MODEL)

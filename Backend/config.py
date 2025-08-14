@@ -28,7 +28,7 @@ class Config:
     # AI Model Configuration
     OLLAMA_BASE_URL = "http://localhost:11434"
     LLM_MODEL = "qwen3:0.6b"  # Lightweight Qwen model
-    EMBEDDING_MODEL = "all-minilm:33m"  # Small embedding model
+    EMBEDDING_MODEL = "granite-embedding:30m"  # Small embedding model
     
     # Vector Store Configuration (FAISS)
     VECTOR_STORE_PATH = "vector_store"
