@@ -23,8 +23,8 @@ class Config:
     
     # Ollama/AI settings
     OLLAMA_BASE_URL = "http://localhost:11434"
-    LLM_MODEL = "granite3.3:2b"
-    EMBEDDING_MODEL = "granite-embedding:278m"
+    LLM_MODEL = "gemma2:2b"
+    EMBEDDING_MODEL = "all-minilm:22m"
     
     # RAG settings
     CHUNK_SIZE = 1000
