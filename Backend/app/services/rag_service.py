@@ -263,15 +263,17 @@ class RAGService:
             context = "\n\n".join([self._compact_text(doc.page_content) for doc in relevant_docs])
 
             # Compose the full prompt for the language model
-            full_prompt = (
-                f"Context from document '{chat.document.original_filename}':\n"
-                f"{context}\n\n"
-                f"Conversation History:\n"
-                f"{chr(10).join(history[-6:])}\n\n"
-                f"Current Question: {user_message}\n\n"
-                f"Instructions: {context_prompt}\n\n"
-                f"Answer:"
-            )
+            full_prompt = f"""You are an AI assistant helping with document '{chat.document.original_filename}'.
+                        If you can't answer from the document, say so politely.
+
+                        Document content:
+                        {context}
+
+                        Conversation History:
+                        {chr(10).join(history[-6:])}
+
+                        User: {user_message}
+                        Assistant:"""
 
             logger.debug("Sending prompt to LLM (length=%s)", len(full_prompt))
             response_text = self.llm.invoke(full_prompt)

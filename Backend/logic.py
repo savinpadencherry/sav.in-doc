@@ -22,8 +22,8 @@ CHATS_DIR = "./chats"
 #defines a directory to store chat history
 os.makedirs(CHATS_DIR, exist_ok=True)
 
-LLM_MODEL = "qwen3:0.6b"
-EMBED_MODEL = "granite-embedding:30m"
+LLM_MODEL = "gemma3:270m"
+EMBED_MODEL = "all-minilm:22m"
 
 llm = OllamaLLM(model=LLM_MODEL, temperature=0.5)
 embeddings = OllamaEmbeddings(model=EMBED_MODEL)
