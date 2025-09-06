@@ -1,0 +1,32 @@
+{
+  "name": "chainsync",
+  "version": "1.0.0",
+  "description": "ChainSync - Agentic AI + RAG for logistics load planning and route optimization",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,json}\"",
+    "screenshot": "pnpm --filter=web run screenshot"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^1.10.7",
+    "turbo": "^1.10.7",
+    "prettier": "^3.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "packageManager": "pnpm@8.6.10",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

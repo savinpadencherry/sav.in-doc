@@ -1,0 +1,16 @@
+[project]
+name = "chainsync-ai"
+version = "1.0.0"
+description = "ChainSync AI package for RAG and route optimization"
+dependencies = [
+    "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.4",
+    "ortools>=9.8.0",
+    "numpy>=1.24.0",
+    "pandas>=2.1.0",
+    "scikit-learn>=1.3.0"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
